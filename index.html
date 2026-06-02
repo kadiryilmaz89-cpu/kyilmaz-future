@@ -4809,27 +4809,95 @@ async function sendAIChat(){
     return;
   }
 
-  document.getElementById('aiChatStatus').textContent = 'Düşünüyor...';
-
-  try{
-    const resp = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        system: buildSystemContext(),
-        messages:[{role:'user', content: msg}]
-      })
-    });
-    const data = await resp.json();
-    const answer = data.content?.[0]?.text || 'Cevap alınamadı.';
-    addChatMsg(answer, false);
+  document.getElementById('aiChatStatus').textContent = 'Analiz ediyor...';
+  setTimeout(()=>{
+    const cevap = kyilmazAIAnaliz(lowerMsg, msg);
+    addChatMsg(cevap, false);
     document.getElementById('aiChatStatus').textContent = 'Hazır — soru sor';
-  } catch(e){
-    addChatMsg('❌ Bağlantı hatası, tekrar dene.', false);
-    document.getElementById('aiChatStatus').textContent = 'Hata!';
+  }, 400);
+}
+
+function kyilmazAIAnaliz(lowerMsg, orijinalMsg){
+  const masterR = window._masterResults || [];
+  const longlar = masterR.filter(r=>r.isLong);
+  const shortlar = masterR.filter(r=>!r.isLong);
+  const patlama = window.patlamaCache || [];
+  const dusus = window.dususCache || [];
+  const acikPoz = (window.aiPositions||[]).filter(p=>p.status==='open');
+  const futures = window.allFutures || [];
+  const btc = futures.find(f=>f.sym==='BTCUSDT');
+
+  // ── AÇIK POZİSYON SORGUSU ──
+  if(lowerMsg.includes('açık poz') || lowerMsg.includes('pozisyon var') || lowerMsg.includes('poz var') || lowerMsg.includes('açık var')){
+    if(acikPoz.length===0) return '📭 Şu an açık pozisyon yok.';
+    return '📊 Açık Pozisyonlar:\n' + acikPoz.map(p=>{
+      const f = futures.find(x=>x.sym===p.sym+'USDT');
+      const guncelFiyat = f?.price || p.entry;
+      const pnlPct = p.dir==='LONG' ? ((guncelFiyat-p.entry)/p.entry*100) : ((p.entry-guncelFiyat)/p.entry*100);
+      return `${p.dir==='LONG'?'▲':'▼'} ${p.sym} ${p.dir}\nGiriş: $${p.entry} → Şimdi: $${guncelFiyat}\nPnL: ${pnlPct>=0?'+':''}${pnlPct?.toFixed?.(2)||0}% | TP1: $${p.tp1} | SL: $${p.sl}`;
+    }).join('\n\n');
   }
+
+  // ── SHORT ADAYLARI ──
+  if(lowerMsg.includes('short') && (lowerMsg.includes('bul') || lowerMsg.includes('var mı') || lowerMsg.includes('aday') || lowerMsg.includes('ver') || lowerMsg.includes('poz'))){
+    if(shortlar.length===0 && dusus.length===0) return '🔍 Şu an güçlü short adayı bulunamadı. Tarama yapın.';
+    let cevap = '';
+    if(shortlar.length>0){
+      cevap += '🔴 Master Sinyal SHORT Adayları:\n';
+      cevap += shortlar.slice(0,3).map(r=>`▼ ${r.sym.replace('USDT','')} — Skor: ${r.masterScore}/100\nGiriş: $${r.price} | TP1: $${r.tp1?.toFixed?.(6)||'-'} | SL: $${r.sl?.toFixed?.(6)||'-'}\n${r.reasons?.slice(0,2).join(' · ')||''}`).join('\n\n');
+    }
+    if(dusus.length>0 && shortlar.length===0){
+      cevap += '📉 Düşüş Taraması:\n';
+      cevap += dusus.slice(0,3).map(r=>`▼ ${r.sym?.replace('USDT','')||r.s?.replace('USDT','')} — Düşüş Skoru: ${r.ds?.totalScore||0}`).join('\n');
+    }
+    return cevap || 'Veri yok, tarama yapın.';
+  }
+
+  // ── LONG ADAYLARI ──
+  if(lowerMsg.includes('long') && (lowerMsg.includes('bul') || lowerMsg.includes('var mı') || lowerMsg.includes('aday') || lowerMsg.includes('ver') || lowerMsg.includes('poz'))){
+    if(longlar.length===0 && patlama.length===0) return '🔍 Şu an güçlü long adayı bulunamadı. Tarama yapın.';
+    let cevap = '';
+    if(longlar.length>0){
+      cevap += '🟢 Master Sinyal LONG Adayları:\n';
+      cevap += longlar.slice(0,3).map(r=>`▲ ${r.sym.replace('USDT','')} — Skor: ${r.masterScore}/100\nGiriş: $${r.price} | TP1: $${r.tp1?.toFixed?.(6)||'-'} | SL: $${r.sl?.toFixed?.(6)||'-'}\n${r.reasons?.slice(0,2).join(' · ')||''}`).join('\n\n');
+    }
+    return cevap || 'Veri yok, tarama yapın.';
+  }
+
+  // ── BELİRLİ COİN ANALİZİ ──
+  const coinMatch = orijinalMsg.match(/([A-Za-z]{2,10})(usdt)?/i);
+  if(coinMatch){
+    const coinAdi = coinMatch[1].toUpperCase();
+    const f = futures.find(x=>x.sym===coinAdi+'USDT');
+    if(f){
+      const master = masterR.find(r=>r.sym===coinAdi+'USDT');
+      const pat = patlama.find(r=>(r.sym||r.s||'').includes(coinAdi));
+      const dus = dusus.find(r=>(r.sym||r.s||'').includes(coinAdi));
+      let cevap = `📊 ${coinAdi} Analizi:\n`;
+      cevap += `Fiyat: $${f.price} (${f.ch>=0?'+':''}${f.ch?.toFixed?.(2)||0}%)\n`;
+      cevap += `Sinyal: ${f.sig||'BEKLE'} %${f.confidence||0} güven\n`;
+      if(f.rsi) cevap += `RSI: ${f.rsi?.toFixed?.(0)||'-'}\n`;
+      if(master) cevap += `\n🎯 Master Sinyal: ${master.isLong?'▲ LONG':'▼ SHORT'} — ${master.masterScore}/100\nGiriş: $${master.price} | TP1: $${master.tp1?.toFixed?.(6)||'-'} | SL: $${master.sl?.toFixed?.(6)||'-'}\n${master.confirm||''}`;
+      if(pat) cevap += `\n🔥 Patlama Skoru: ${pat.ps?.totalScore||0}`;
+      if(dus) cevap += `\n📉 Düşüş Skoru: ${dus.ds?.totalScore||0}`;
+      if(!master && !pat && !dus) cevap += '\n⚠️ Master sinyalde yok, tarama yapın.';
+      return cevap;
+    }
+  }
+
+  // ── BTC DURUMU ──
+  if(lowerMsg.includes('btc') || lowerMsg.includes('bitcoin') || lowerMsg.includes('piyasa')){
+    if(!btc) return 'BTC verisi yok, bağlantıyı kontrol edin.';
+    return `₿ BTC Durumu:\nFiyat: $${btc.price}\nDeğişim: ${btc.ch>=0?'+':''}${btc.ch?.toFixed?.(2)||0}%\nSinyal: ${btc.sig||'BEKLE'} %${btc.confidence||0} güven\nRSI: ${btc.rsi?.toFixed?.(0)||'-'}\nFunding: ${btc.fr?.toFixed?.(4)||'-'}`;
+  }
+
+  // ── GENEL DURUM ──
+  if(lowerMsg.includes('durum') || lowerMsg.includes('genel') || lowerMsg.includes('ne var') || lowerMsg.includes('özet')){
+    return `📊 Genel Durum:\n${btc?`₿ BTC: $${btc.price} (${btc.ch>=0?'+':''}${btc.ch?.toFixed?.(2)||0}%)`:'BTC yok'}\n🟢 Long adayı: ${longlar.length} coin\n🔴 Short adayı: ${shortlar.length} coin\n🔥 Patlama listesi: ${patlama.length} coin\n📉 Düşüş listesi: ${dusus.length} coin\n📊 Açık pozisyon: ${acikPoz.length}`;
+  }
+
+  // ── YARDIM ──
+  return `Şunu sorabilirsin:\n• "Short adayları ver"\n• "Long poz bul"\n• "BTC durumu"\n• "Açık pozisyon var mı"\n• "EPICUS analiz et"\n• "Genel durum"\n• "Short bulursan uyarı ver"`;
 }
 
 function startAIWatch(msg){
@@ -4841,28 +4909,25 @@ function startAIWatch(msg){
   addChatMsg('👁️ İzleme başladı! Her taramada kontrol edeceğim, koşul sağlanınca haber veririm.', false);
   document.getElementById('aiChatStatus').textContent = '👁️ İzleme aktif';
 
-  aiChatWatchInterval = setInterval(async ()=>{
+  aiChatWatchInterval = setInterval(()=>{
     if(!aiChatWatchActive) return;
-    try{
-      const resp = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          model:'claude-sonnet-4-20250514',
-          max_tokens:300,
-          system: buildSystemContext(),
-          messages:[{role:'user', content: `Kullanıcı şunu istedi: "${msg}". Şu an koşul sağlanıyor mu? Eğer sağlanıyorsa "UYARI:" ile başla ve ne bulduğunu söyle. Sağlanmıyorsa sadece "bekliyor" yaz.`}]
-        })
-      });
-      const data = await resp.json();
-      const answer = data.content?.[0]?.text || '';
-      if(answer.toLowerCase().startsWith('uyarı')){
-        addChatMsg('🚨 ' + answer, false);
-        // Ses çal
-        try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=0.4;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+1);o.stop(a.currentTime+1);}catch(e){}
-      }
-    } catch(e){}
-  }, 60000); // Her 60 saniyede kontrol
+    const lowerW = msg.toLowerCase();
+    const masterR = window._masterResults || [];
+    const shortlar = masterR.filter(r=>!r.isLong);
+    const longlar = masterR.filter(r=>r.isLong);
+    let uyari = '';
+
+    if(lowerW.includes('short') && shortlar.length>0){
+      uyari = `🚨 SHORT ADAYI BULUNDU!\n` + shortlar.slice(0,2).map(r=>`▼ ${r.sym.replace('USDT','')} — ${r.masterScore}/100\nGiriş: $${r.price} | SL: $${r.sl?.toFixed?.(6)||'-'}`).join('\n\n');
+    } else if(lowerW.includes('long') && longlar.length>0){
+      uyari = `🚨 LONG ADAYI BULUNDU!\n` + longlar.slice(0,2).map(r=>`▲ ${r.sym.replace('USDT','')} — ${r.masterScore}/100\nGiriş: $${r.price} | SL: $${r.sl?.toFixed?.(6)||'-'}`).join('\n\n');
+    }
+
+    if(uyari){
+      addChatMsg(uyari, false);
+      try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=0.4;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+1);o.stop(a.currentTime+1);}catch(e){}
+    }
+  }, 60000);
 }
 
 // "izlemeyi durdur" komutu
