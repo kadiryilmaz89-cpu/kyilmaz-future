@@ -4822,20 +4822,24 @@ async function sendAIChat(){
       },
       body: JSON.stringify({
         model:'llama-3.3-70b-versatile',
-        max_tokens:1000,
+        max_tokens:800,
         messages:[
           {role:'system', content: buildSystemContext()},
           {role:'user', content: msg}
         ]
       })
     });
+    if(!resp.ok){
+      const err = await resp.text();
+      throw new Error('HTTP '+resp.status+': '+err);
+    }
     const data = await resp.json();
     const answer = data.choices?.[0]?.message?.content || 'Cevap alınamadı.';
     addChatMsg(answer, false);
     document.getElementById('aiChatStatus').textContent = 'Hazır — soru sor';
   } catch(e){
-    // Hata mesajını göster
-    addChatMsg('⚠️ Groq bağlanamadı: ' + e.message + '\n\nKural motoru devreye girdi:', false);
+    addChatMsg('⚠️ Groq hatası: ' + e.message, false);
+    // Yedek: kural motoru
     const cevap = kyilmazAIAnaliz(lowerMsg, msg);
     addChatMsg(cevap, false);
     document.getElementById('aiChatStatus').textContent = 'Hazır — soru sor';
