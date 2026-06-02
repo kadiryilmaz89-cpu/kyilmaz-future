@@ -4794,6 +4794,8 @@ GÜNCEL SİSTEM VERİLERİ:
 Kullanıcı sana bu verilere dayanarak soru soracak. Verilerde olmayan bir şeyi uydurma, "veride yok" de.`;
 }
 
+const GROQ_KEY = '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';
+
 async function sendAIChat(){
   const input = document.getElementById('aiChatInput');
   const msg = input.value.trim();
@@ -4809,12 +4811,35 @@ async function sendAIChat(){
     return;
   }
 
-  document.getElementById('aiChatStatus').textContent = 'Analiz ediyor...';
-  setTimeout(()=>{
+  document.getElementById('aiChatStatus').textContent = 'AI düşünüyor...';
+
+  try{
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+GROQ_KEY
+      },
+      body: JSON.stringify({
+        model:'llama-3.3-70b-versatile',
+        max_tokens:1000,
+        messages:[
+          {role:'system', content: buildSystemContext()},
+          {role:'user', content: msg}
+        ]
+      })
+    });
+    const data = await resp.json();
+    const answer = data.choices?.[0]?.message?.content || 'Cevap alınamadı.';
+    addChatMsg(answer, false);
+    document.getElementById('aiChatStatus').textContent = 'Hazır — soru sor';
+  } catch(e){
+    // Hata mesajını göster
+    addChatMsg('⚠️ Groq bağlanamadı: ' + e.message + '\n\nKural motoru devreye girdi:', false);
     const cevap = kyilmazAIAnaliz(lowerMsg, msg);
     addChatMsg(cevap, false);
     document.getElementById('aiChatStatus').textContent = 'Hazır — soru sor';
-  }, 400);
+  }
 }
 
 function kyilmazAIAnaliz(lowerMsg, orijinalMsg){
