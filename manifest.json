@@ -1,0 +1,24 @@
+{
+  "name": "KYILMAZ FUTURE",
+  "short_name": "KYILMAZ",
+  "description": "AI Destekli Kripto Futures Analiz",
+  "start_url": "/kyilmaz-future/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#6c63ff",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://kadiryilmaz89-cpu.github.io/kyilmaz-future/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://kadiryilmaz89-cpu.github.io/kyilmaz-future/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["finance"],
+  "lang": "tr"
+}

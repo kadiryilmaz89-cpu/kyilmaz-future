@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
 <title>KYILMAZ FUTURE</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KYILMAZ">
+<meta name="theme-color" content="#6c63ff">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -270,6 +276,7 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
   </div>
   <div class="hright">
     <div class="clock" id="clock">--:--:--</div>
+    <button class="fs-btn" id="notifBtn" onclick="toggleNotif()" title="Bildirimler">🔔</button>
     <button class="fs-btn" onclick="toggleFS()">⛶</button>
     <button class="scan-btn" id="scanBtn" onclick="startScan()">🔍 Tara</button>
   </div>
@@ -4127,6 +4134,12 @@ function renderMasterSignal() {
       lastMasterAlert[best.sym]=now;
       const sym=best.sym.replace('USDT','');
       showTicker('🎯 MASTER SİNYAL: '+sym+' '+(best.isLong?'LONG':'SHORT')+' — Skor '+best.masterScore+'/100');
+      // Tarayıcı bildirimi
+      sendNotif(
+        '🎯 ' + sym + ' ' + (best.isLong?'▲ LONG':'▼ SHORT') + ' — ' + best.masterScore + '/100',
+        'Giriş: $' + best.price + ' | TP1: $' + (best.tp1?.toFixed?.(4)||'-') + ' | SL: $' + (best.sl?.toFixed?.(4)||'-'),
+        'master-' + best.sym
+      );
       try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=best.isLong?660:440;g.gain.value=0.3;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.6);o.stop(a.currentTime+0.6);}catch(e){}
     }
   });
@@ -4865,6 +4878,72 @@ function showPozDetay(p, isOpen){
 
   pop.style.display = 'flex';
 }
+
+// Service Worker kayıt
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/kyilmaz-future/sw.js')
+    .then(reg => console.log('[SW] Kayıt OK:', reg.scope))
+    .catch(err => console.log('[SW] Hata:', err));
+}
+
+// ── BİLDİRİM SİSTEMİ ──
+let notifEnabled = localStorage.getItem('kfnotif') !== 'off';
+
+function updateNotifBtn(){
+  const btn = $('notifBtn');
+  if(!btn) return;
+  btn.textContent = notifEnabled ? '🔔' : '🔕';
+  btn.style.opacity = notifEnabled ? '1' : '0.5';
+  btn.title = notifEnabled ? 'Bildirimler Açık' : 'Bildirimler Kapalı';
+}
+
+async function toggleNotif(){
+  if(!notifEnabled){
+    // Açmak istiyor — izin iste
+    if('Notification' in window){
+      const perm = await Notification.requestPermission();
+      if(perm === 'granted'){
+        notifEnabled = true;
+        localStorage.setItem('kfnotif','on');
+        sendNotif('🔔 Bildirimler Açık', 'KYILMAZ FUTURE sinyalleri için bildirimler aktif!');
+      } else {
+        alert('Bildirim izni verilmedi. Ayarlar → Safari/Chrome → Bildirimler bölümünden izin verin.');
+        return;
+      }
+    } else {
+      alert('Bu tarayıcı bildirimleri desteklemiyor.');
+      return;
+    }
+  } else {
+    notifEnabled = false;
+    localStorage.setItem('kfnotif','off');
+  }
+  updateNotifBtn();
+}
+
+function sendNotif(title, body, tag){
+  if(!notifEnabled) return;
+  if(!('Notification' in window)) return;
+  if(Notification.permission !== 'granted') return;
+  try{
+    new Notification(title, {
+      body: body,
+      icon: 'https://kadiryilmaz89-cpu.github.io/kyilmaz-future/icon.png',
+      tag: tag || 'kyilmaz-signal',
+      requireInteraction: false,
+      silent: false
+    });
+  } catch(e){}
+}
+
+// Sayfa yüklenince bildirim durumunu güncelle
+document.addEventListener('DOMContentLoaded', ()=>{
+  updateNotifBtn();
+  // Daha önce izin verilmişse otomatik aç
+  if('Notification' in window && Notification.permission === 'granted'){
+    notifEnabled = localStorage.getItem('kfnotif') !== 'off';
+  }
+});
 
 // ── AI CHAT ──
 let aiChatOpen = false;
