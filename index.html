@@ -1499,27 +1499,25 @@ function renderEFormulu(){
     }
   });
 
-  // 3+ onay gelince anında popup + bildirim
+  // 3+ onay gelince SADECE YENİ poz açılınca popup + bildirim
+  const efSymsNow = liste.filter(f=>f.onayCount>=3).map(f=>f.sym);
+  // Kapanan pozların alertini sıfırla
+  Object.keys(localStorage).filter(k=>k.startsWith('kfef_alert_')).forEach(k=>{
+    const sym = k.replace('kfef_alert_','');
+    if(!efSymsNow.includes(sym)) localStorage.removeItem(k);
+  });
   liste.filter(f=>f.onayCount>=3).forEach(f=>{
-    const key='kfef_'+f.sym;
-    const last=parseInt(localStorage.getItem(key)||'0');
-    const now=Date.now();
-    if((now-last)>1800000){ // 30 dakikada bir
-      localStorage.setItem(key,String(now));
+    const key='kfef_alert_'+f.sym;
+    const alreadyAlerted = localStorage.getItem(key)==='open';
+    if(!alreadyAlerted){
+      localStorage.setItem(key,'open');
       const sym=f.sym.replace('USDT','');
-
+      // Ses
+      try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=440;g.gain.value=0.4;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+1);o.stop(a.currentTime+1);}catch(e){}
       // Popup
       showEFormulPop(f);
-
-      // Ses
-      try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=440;g.gain.value=0.3;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.8);o.stop(a.currentTime+0.8);}catch(e){}
-
       // Bildirim
-      sendNotif(
-        '📉 E FORMÜLÜ: ' + sym + ' — ' + f.onayCount + '/5 Onay',
-        f.etiket + ' | 5g Pump: +' + (f.gain5d?.toFixed?.(0)||0) + '% | Bugün: ' + (f.ch?.toFixed?.(1)||0) + '%',
-        'eformul-' + f.sym
-      );
+      sendNotif('📉 E FORMÜLÜ: '+sym+' — '+f.onayCount+'/5 Onay', f.etiket+' | 5g Pump: +'+(f.gain5d?.toFixed?.(0)||0)+'% | Bugün: '+(f.ch?.toFixed?.(1)||0)+'%', 'eformul-'+f.sym);
     }
   });
 
@@ -4140,32 +4138,29 @@ function renderMasterSignal() {
   try{ localStorage.setItem('kyilmaz:ai:positions', JSON.stringify(aiPositions)); }catch(e){}
   if(typeof renderAIPositions==='function') renderAIPositions();
 
-  // Alarm - her yeni sinyal için anında popup + bildirim
+  // Alarm - sadece YENİ poz açılınca ver
   const now = Date.now();
-  results.slice(0,2).forEach(best=>{
-    const key = 'kfmaster_'+best.sym+'_'+(best.isLong?'L':'S');
-    const last = parseInt(localStorage.getItem(key)||'0');
-    if((now-last) > 1800000){ // 30 dakikada bir
-      localStorage.setItem(key, String(now));
-      const sym=best.sym.replace('USDT','');
-      const dir=best.isLong?'▲ LONG':'▼ SHORT';
-
-      // Ticker
-      showTicker('🎯 EN GÜÇLÜ SİNYAL: '+sym+' '+dir+' — Skor '+best.masterScore+'/100');
-
+  if(results.length > 0){
+    const best = results[0];
+    const key = 'kfmaster_alert_'+best.sym+'_'+(best.isLong?'L':'S');
+    const alreadyAlerted = localStorage.getItem(key) === 'open';
+    if(!alreadyAlerted){
+      localStorage.setItem(key, 'open');
+      const sym = best.sym.replace('USDT','');
+      const dir = best.isLong ? '▲ LONG' : '▼ SHORT';
       // Ses
-      try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=best.isLong?660:440;g.gain.value=0.3;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.8);o.stop(a.currentTime+0.8);}catch(e){}
-
-      // Tarayıcı bildirimi
-      sendNotif(
-        '🎯 ' + sym + ' ' + dir + ' — ' + best.masterScore + '/100',
-        'Giriş: $' + best.price + ' | TP1: $' + (best.tp1?.toFixed?.(4)||'-') + ' | SL: $' + (best.sl?.toFixed?.(4)||'-'),
-        'master-' + best.sym
-      );
-
+      try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=best.isLong?660:440;g.gain.value=0.4;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+1);o.stop(a.currentTime+1);}catch(e){}
+      // Bildirim
+      sendNotif('🎯 '+sym+' '+dir+' — '+best.masterScore+'/100', 'Giriş: $'+best.price+' | TP1: $'+(best.tp1?.toFixed?.(4)||'-')+' | SL: $'+(best.sl?.toFixed?.(4)||'-'), 'master-'+best.sym);
       // Popup
-      setTimeout(()=>{ if(typeof showMasterSignalPop==='function') showMasterSignalPop(0); }, 500);
+      setTimeout(()=>showMasterSignalPop(0), 800);
     }
+  }
+  // Poz kapanınca key sıfırla
+  const masterSymsNowAlert = results.slice(0,2).map(r=>r.sym+'_'+(r.isLong?'L':'S'));
+  Object.keys(localStorage).filter(k=>k.startsWith('kfmaster_alert_')).forEach(k=>{
+    const sym = k.replace('kfmaster_alert_','');
+    if(!masterSymsNowAlert.includes(sym)) localStorage.removeItem(k);
   });
 
   // Panel render
