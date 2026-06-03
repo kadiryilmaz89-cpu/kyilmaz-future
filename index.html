@@ -527,11 +527,12 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
 <div class="section" style="border-left:4px solid var(--green)">
   <div class="section-title">📈 Sistem Performansı <small>— Her bölümün kendi sanal pozisyonları</small></div>
 
-  <!-- Ana sekmeler: 3 kaynak -->
+  <!-- Ana sekmeler -->
   <div class="tab-bar" id="perfSourceTabs" style="margin-bottom:12px">
-    <button class="tab-btn active" onclick="switchPerfSource('patlama',this)">🔥 Patlama Skoru</button>
-    <button class="tab-btn" onclick="switchPerfSource('futures',this)">🔮 Futures Sinyali</button>
-
+    <button class="tab-btn active" onclick="switchPerfSource('patlama',this)">🔥 Patlama & 📉 Düşüş</button>
+    <button class="tab-btn" onclick="switchPerfSource('eformul',this)">🔴 E Formülü</button>
+    <button class="tab-btn" onclick="switchPerfSource('master',this)">💎 Güçlü Sinyal</button>
+    <button class="tab-btn" onclick="switchPerfSource('futures',this)">🔮 Futures</button>
   </div>
 
   <!-- Kaynak özet -->
@@ -1471,6 +1472,25 @@ function renderEFormulu(){
 
   liste.sort((a,b)=>b.onayCount-a.onayCount||b.gain5d-a.gain5d);
   window._eFormulResults = liste; // Master Sinyal için sakla
+
+  // E Formülü → otomatik SHORT sanal poz aç (3+ onay)
+  liste.filter(f=>f.onayCount>=3).slice(0,5).forEach(f=>{
+    const fData = allFutures.find(x=>x.sym===f.sym)||{sym:f.sym,price:f.price};
+    const atr = fData.atr || f.price*0.02;
+    const exists = vpEFormul.find(p=>p.sym===f.sym&&p.status==='open');
+    if(!exists){
+      const sl = f.price + atr*1.5;
+      const tp1 = f.price - atr*2;
+      const tp2 = f.price - atr*4;
+      vpEFormul.push({
+        sym:f.sym, dir:'SHORT', entryPrice:f.price,
+        entryTime:Date.now(), sl, tp1, tp2,
+        score:f.onayCount*20, lev:VP_LEV, size:VP_SIZE,
+        status:'open', onaylar:f.onaylar, gain5d:f.gain5d
+      });
+      saveVP('eformul');
+    }
+  });
 
   // 4+ onay gelince otomatik popup aç
   liste.filter(f=>f.onayCount>=4).forEach(f=>{
@@ -3157,6 +3177,8 @@ setInterval(()=>{if(scanned)updateMarketMessage();},3600000); // saatte bir
 let vpPatlama=JSON.parse(localStorage.getItem('kfvp_p')||'[]');   // Patlama skoru
 let vpFutures=JSON.parse(localStorage.getItem('kfvp_f')||'[]');   // Futures sinyal
 let vpStrateji=JSON.parse(localStorage.getItem('kfvp_s')||'[]');  // Otomatik strateji
+let vpEFormul=JSON.parse(localStorage.getItem('kfvp_e')||'[]');   // E Formülü
+let vpMaster=JSON.parse(localStorage.getItem('kfvp_m')||'[]');    // Güçlü Sinyal
 let currentPerfSource='patlama';
 let virtualPositions=[];
 
@@ -3165,25 +3187,31 @@ const INITIAL_KASA = 1000; // $
 let kasaPatlama = parseFloat(localStorage.getItem('kfkasa_p')||INITIAL_KASA);
 let kasaFutures = parseFloat(localStorage.getItem('kfkasa_f')||INITIAL_KASA);
 let kasaStrateji = parseFloat(localStorage.getItem('kfkasa_s')||INITIAL_KASA);
+let kasaDusus = parseFloat(localStorage.getItem('kfkasa_d')||INITIAL_KASA);
+let kasaEFormul = parseFloat(localStorage.getItem('kfkasa_e')||INITIAL_KASA);
+let kasaMaster = parseFloat(localStorage.getItem('kfkasa_m')||INITIAL_KASA);
 
-function getKasa(src){return src==='patlama'?kasaPatlama:src==='futures'?kasaFutures:kasaStrateji;}
+function getKasa(src){return src==='patlama'?kasaPatlama:src==='futures'?kasaFutures:src==='dusus'?kasaDusus:src==='eformul'?kasaEFormul:src==='master'?kasaMaster:kasaStrateji;}
 function updateKasaFromClose(src, pnlUsd){
   if(src==='patlama'){kasaPatlama+=pnlUsd;localStorage.setItem('kfkasa_p',kasaPatlama);}
   else if(src==='futures'){kasaFutures+=pnlUsd;localStorage.setItem('kfkasa_f',kasaFutures);}
+  else if(src==='dusus'){kasaDusus+=pnlUsd;localStorage.setItem('kfkasa_d',kasaDusus);}
+  else if(src==='eformul'){kasaEFormul+=pnlUsd;localStorage.setItem('kfkasa_e',kasaEFormul);}
+  else if(src==='master'){kasaMaster+=pnlUsd;localStorage.setItem('kfkasa_m',kasaMaster);}
   else{kasaStrateji+=pnlUsd;localStorage.setItem('kfkasa_s',kasaStrateji);}
 }
 // {sym, dir, entryPrice, entryTime, sl, tp1, tp2, score, status:'open'|'win'|'loss'|'expired', closePrice, closePct}
 let signalResults=JSON.parse(localStorage.getItem('kfsr')||'[]');
-// {sym, score, entryPrice, entryTime, price4h, price24h, price7d, pct4h, pct24h, pct7d}
 
-// Sanal pozisyon aç (patlama skoru 65+ ise)
-function getVP(src){return src==='patlama'?vpPatlama:src==='futures'?vpFutures:vpStrateji;}
+// Sanal pozisyon aç
+function getVP(src){return src==='patlama'?vpPatlama:src==='futures'?vpFutures:src==='eformul'?vpEFormul:src==='master'?vpMaster:vpStrateji;}
 function saveVP(src){
-  // localStorage (hız için)
   if(src==='patlama')localStorage.setItem('kfvp_p',JSON.stringify(vpPatlama));
   else if(src==='futures')localStorage.setItem('kfvp_f',JSON.stringify(vpFutures));
+  else if(src==='eformul')localStorage.setItem('kfvp_e',JSON.stringify(vpEFormul));
+  else if(src==='master')localStorage.setItem('kfvp_m',JSON.stringify(vpMaster));
   else localStorage.setItem('kfvp_s',JSON.stringify(vpStrateji));
-  // Bulut (cihazlar arası senkron)
+  // Bulut
   cloudSave(STORAGE_KEYS.vpPatlama, vpPatlama);
   cloudSave(STORAGE_KEYS.vpFutures, vpFutures);
   cloudSave(STORAGE_KEYS.vpStrateji, vpStrateji);
@@ -3358,7 +3386,7 @@ function renderPerfContent(tab){
   const src=currentPerfSource;
   const summary=calcPerfSummary(src);
   const vp=getVP(src);
-  const srcLabels={patlama:'🔥 Patlama Skoru',futures:'🔮 Futures Sinyali',strateji:'🔁 Otomatik Strateji'};
+  const srcLabels={patlama:'🔥 Patlama Skoru',futures:'🔮 Futures Sinyali',strateji:'🔁 Otomatik Strateji',eformul:'🔴 E Formülü SHORT',master:'💎 Güçlü Sinyal'};
 
   // Özet güncelle
   $('perfTotal').textContent=summary.total||vp.length;
@@ -3881,10 +3909,10 @@ function renderAITrader(){
   // Anlık kasa = mevcut kasa + açık pozların PNL
   const openPosPNL=aiPositions.filter(p=>p.status==='open').reduce((sum,p)=>{
     const f=allFutures.find(x=>(x.sym||x.symbol)===p.sym);
-    const cur=f?parseFloat(f.lastPrice||f.price):p.entry;
+    const cur=parseFloat(f?.lastPrice||f?.price)||p.entry;
+    const marjin=parseFloat(p.marjin)||50;
+    const lev=parseFloat(p.lev)||10;
     const pct=p.dir==='LONG'?(cur-p.entry)/p.entry*100:(p.entry-cur)/p.entry*100;
-    return sum+p.marjin*p.lev*pct/100;
-  },0);
   const anlikKasa=aiKasa+openPosPNL;
   const anlikGain=((anlikKasa-AI_INITIAL_KASA)/AI_INITIAL_KASA*100);
   const maxDrawdown=Math.min(0,((anlikKasa-AI_INITIAL_KASA)/AI_INITIAL_KASA*100));
@@ -3926,7 +3954,7 @@ function renderAITrader(){
       totalOpenPnl+=pnlUsd;
       const d=p.entry>100?2:6;
       const age=Math.round((Date.now()-p.openTime)/3600000);
-      return`<div style="background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:5px;border-left:3px solid ${pct>=0?'var(--green)':'var(--red)'}">
+      return`<div onclick="showPozDetay(aiPositions.find(x=>x.sym===p.sym&&x.openTime===p.openTime),true)" style="background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:5px;border-left:3px solid ${pct>=0?'var(--green)':'var(--red)'};cursor:pointer">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:3px">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:13px;font-weight:800">${p.sym.replace('USDT','')}</span>
@@ -3963,7 +3991,7 @@ function renderAITrader(){
       const col=p.closePnl>=0?'var(--green)':'var(--red)';
       const age=Math.round((Date.now()-p.openTime)/3600000);
       const closeReason=p.status==='win'?'TP Vurdu':p.status==='loss'?'SL Vurdu':'Süre Doldu';
-      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:4px;border-left:3px solid ${col}">
+      return`<div onclick="showPozDetay(p,false)" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:4px;border-left:3px solid ${col};cursor:pointer">
         <div style="display:flex;align-items:center;gap:7px">
           <span>${ico}</span>
           <div>
@@ -4159,6 +4187,37 @@ function renderMasterSignal() {
       });
     }
   });
+
+  // ── PERFORMANS için MASTER sanal poz aç ──
+  results.slice(0,3).forEach(best=>{
+    const exists = vpMaster.find(p=>p.sym===best.sym&&p.status==='open');
+    if(!exists){
+      const price = best.price;
+      const atr = best.atr || price*0.02;
+      vpMaster.push({
+        sym: best.sym, dir: best.isLong?'LONG':'SHORT',
+        entryPrice: price, entryTime: Date.now(),
+        sl: best.sl, tp1: best.tp1, tp2: best.tp2,
+        score: best.masterScore, lev: VP_LEV, size: VP_SIZE,
+        status: 'open', reasons: best.reasons, confirm: best.confirm
+      });
+    }
+  });
+  // Sinyal değişince master pozları kaldır
+  const masterSymsNow = results.slice(0,3).map(r=>r.sym);
+  vpMaster.forEach(p=>{
+    if(p.status==='open' && !masterSymsNow.includes(p.sym)){
+      const f = allFutures.find(x=>x.sym===p.sym);
+      const cur = parseFloat(f?.lastPrice||f?.price)||p.entryPrice;
+      const pct = p.dir==='LONG'?(cur-p.entryPrice)/p.entryPrice*100:(p.entryPrice-cur)/p.entryPrice*100;
+      p.closePrice = cur;
+      p.closePct = pct;
+      p.closePnl = VP_SIZE*VP_LEV*pct/100;
+      p.status = pct>=0?'win':'loss';
+      updateKasaFromClose('master', p.closePnl);
+    }
+  });
+  saveVP('master');
 
   // Kaydet
   try{ localStorage.setItem('kyilmaz:ai:positions', JSON.stringify(aiPositions)); }catch(e){}
@@ -4525,15 +4584,16 @@ function renderAITrader(){
   // Anlık kasa = mevcut kasa + açık pozların PNL
   const openPosPNL=aiPositions.filter(p=>p.status==='open').reduce((sum,p)=>{
     const f=allFutures.find(x=>(x.sym||x.symbol)===p.sym);
-    const cur=f?parseFloat(f.lastPrice||f.price):p.entry;
+    const cur=parseFloat(f?.lastPrice||f?.price)||p.entry;
+    const marjin=parseFloat(p.marjin)||50;
+    const lev=parseFloat(p.lev)||10;
     const pct=p.dir==='LONG'?(cur-p.entry)/p.entry*100:(p.entry-cur)/p.entry*100;
-    return sum+p.marjin*p.lev*pct/100;
+    const pnl=marjin*lev*pct/100;
+    return sum+(isNaN(pnl)?0:pnl);
   },0);
-  const anlikKasa=aiKasa+openPosPNL;
-  const anlikGain=((anlikKasa-AI_INITIAL_KASA)/AI_INITIAL_KASA*100);
-  const maxDrawdown=Math.min(0,((anlikKasa-AI_INITIAL_KASA)/AI_INITIAL_KASA*100));
+  const anlikKasa = isNaN(aiKasa+openPosPNL) ? aiKasa : aiKasa+openPosPNL;
+  const anlikGain = ((anlikKasa-AI_INITIAL_KASA)/AI_INITIAL_KASA*100);
   $('aiKasaDisplay').textContent = '$'+anlikKasa.toLocaleString('tr-TR',{maximumFractionDigits:0});
-  $('aiKasaDisplay').style.color = anlikKasa>=AI_INITIAL_KASA?'var(--green)':'var(--red)';
   $('aiKasaGainDisplay').textContent = (anlikGain>=0?'+':'')+anlikGain?.toFixed(1)+'% · Kapalı: $'+aiKasa?.toFixed(0);
   $('aiKasaGainDisplay').style.color = anlikGain>=0?'var(--green)':'var(--red)';
   // Drawdown uyarısı
@@ -4750,6 +4810,138 @@ setInterval(()=>{if(wl.length)fetchWLData();},30000); // takip listesi 30sn'de b
 </div>
 
 <script>
+// ── POZ DETAY POPUP ──
+function showPozDetay(p, isOpen){
+  const pop = $('pozDetayPop');
+  const header = $('pozDetayHeader');
+  const title = $('pozDetayTitle');
+  const subtitle = $('pozDetaySubtitle');
+  const body = $('pozDetayBody');
+
+  const isLong = p.dir==='LONG';
+  const col = isLong ? 'var(--green)' : 'var(--red)';
+  const marjin = parseFloat(p.marjin)||50;
+  const lev = parseFloat(p.lev)||10;
+  const entry = parseFloat(p.entry)||0;
+  const d = entry>100?2:6;
+
+  // Header rengi
+  header.style.background = isLong ? 'linear-gradient(135deg,rgba(0,212,161,.2),rgba(0,212,161,.05))' : 'linear-gradient(135deg,rgba(255,71,87,.2),rgba(255,71,87,.05))';
+  header.style.borderBottom = `2px solid ${col}`;
+
+  if(isOpen){
+    const f = allFutures.find(x=>(x.sym||x.symbol)===p.sym);
+    const cur = parseFloat(f?.lastPrice||f?.price)||entry;
+    const pct = isLong?(cur-entry)/entry*100:(entry-cur)/entry*100;
+    const pnlUsd = marjin*lev*pct/100;
+    const xKar = pnlUsd/marjin; // kaç x kar/zarar
+    const age = Math.round((Date.now()-p.openTime)/3600000);
+    const toTP1 = isLong?(p.tp1-cur)/cur*100:(cur-p.tp1)/p.tp1*100;
+    const toSL = isLong?(cur-p.sl)/cur*100:(p.sl-cur)/p.sl*100;
+
+    title.innerHTML = `${isLong?'▲':'▼'} ${p.sym.replace('USDT','')} <span style="color:${col}">${p.dir}</span>`;
+    subtitle.textContent = `${lev}x kaldıraç · $${marjin?.toFixed(0)} marjin · ${age} saat önce açıldı`;
+
+    body.innerHTML = `
+      <!-- Ana PNL -->
+      <div style="text-align:center;padding:16px;background:${pnlUsd>=0?'rgba(0,212,161,.1)':'rgba(255,71,87,.1)'};border-radius:12px;margin-bottom:14px">
+        <div style="font-size:38px;font-weight:900;color:${pnlUsd>=0?'var(--green)':'var(--red)'}">
+          ${pnlUsd>=0?'+':''}$${Math.abs(pnlUsd)?.toFixed(2)}
+        </div>
+        <div style="font-size:16px;font-weight:700;color:${pnlUsd>=0?'var(--green)':'var(--red)'}">
+          ${pct>=0?'+':''}${pct?.toFixed(2)}% &nbsp;·&nbsp; ${xKar>=0?'+':''}${xKar?.toFixed(2)}x
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Marjin üzerinden ${(xKar*100)?.toFixed(1)}% getiri</div>
+      </div>
+
+      <!-- Fiyat grid -->
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
+        <div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Giriş Fiyatı</div>
+          <div style="font-size:17px;font-weight:900">$${fmt(entry,d)}</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center;border:1px solid ${pct>=0?'var(--green)':'var(--red)'}">
+          <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Güncel Fiyat</div>
+          <div style="font-size:17px;font-weight:900;color:${pct>=0?'var(--green)':'var(--red)'}">$${fmt(cur,d)}</div>
+        </div>
+      </div>
+
+      <!-- TP / SL -->
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
+        <div style="background:rgba(0,212,161,.1);border-radius:10px;padding:12px;text-align:center;border:1px solid rgba(0,212,161,.3)">
+          <div style="font-size:10px;color:var(--green);margin-bottom:4px">🎯 TP1 Hedef</div>
+          <div style="font-size:16px;font-weight:900;color:var(--green)">$${fmt(p.tp1,d)}</div>
+          <div style="font-size:10px;color:var(--green);margin-top:3px">${toTP1>=0?'+':''}${toTP1?.toFixed(2)}% uzakta</div>
+        </div>
+        <div style="background:rgba(255,71,87,.1);border-radius:10px;padding:12px;text-align:center;border:1px solid rgba(255,71,87,.3)">
+          <div style="font-size:10px;color:var(--red);margin-bottom:4px">🛑 Stop Loss</div>
+          <div style="font-size:16px;font-weight:900;color:var(--red)">$${fmt(p.sl,d)}</div>
+          <div style="font-size:10px;color:var(--red);margin-top:3px">-${Math.abs(toSL)?.toFixed(2)}% uzakta</div>
+        </div>
+      </div>
+
+      <!-- Risk/Ödül -->
+      <div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:14px">
+        <div style="font-size:10px;color:var(--text2);margin-bottom:8px;font-weight:700">📊 POZİSYON BİLGİSİ</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;font-size:11px">
+          <div><div style="color:var(--text2)">Marjin</div><div style="font-weight:800;font-size:14px">$${marjin?.toFixed(0)}</div></div>
+          <div><div style="color:var(--text2)">Kaldıraç</div><div style="font-weight:800;font-size:14px;color:#a855f7">${lev}x</div></div>
+          <div><div style="color:var(--text2)">Poz. Büyüklük</div><div style="font-weight:800;font-size:14px">$${(marjin*lev)?.toFixed(0)}</div></div>
+        </div>
+      </div>
+
+      <!-- Nedenler -->
+      ${p.reasons?.length?`<div style="background:var(--bg2);border-radius:10px;padding:12px">
+        <div style="font-size:10px;color:var(--text2);margin-bottom:6px;font-weight:700">💡 AÇILIŞ NEDENLERİ</div>
+        ${p.reasons.map(r=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--border);color:var(--text1)">${r}</div>`).join('')}
+      </div>`:''}
+    `;
+  } else {
+    // Kapalı poz
+    const pnlUsd = parseFloat(p.closePnl)||0;
+    const pct = entry>0?pnlUsd/(marjin*lev)*100:0;
+    const xKar = pnlUsd/marjin;
+    const age = Math.round((Date.now()-p.openTime)/3600000);
+    const closeCol = pnlUsd>=0?'var(--green)':'var(--red)';
+    const ico = pnlUsd>=0?'✅':'❌';
+    const closeReason = p.status==='win'?'TP Vurdu':p.status==='loss'?'SL Vurdu':'Süre Doldu';
+
+    title.innerHTML = `${ico} ${p.sym.replace('USDT','')} <span style="color:${col}">${p.dir}</span>`;
+    subtitle.textContent = `${lev}x · $${marjin?.toFixed(0)} marjin · ${age} saat sürdü · ${closeReason}`;
+
+    body.innerHTML = `
+      <div style="text-align:center;padding:16px;background:${pnlUsd>=0?'rgba(0,212,161,.1)':'rgba(255,71,87,.1)'};border-radius:12px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">${closeReason}</div>
+        <div style="font-size:42px;font-weight:900;color:${closeCol}">${pnlUsd>=0?'+':''}$${Math.abs(pnlUsd)?.toFixed(2)}</div>
+        <div style="font-size:16px;font-weight:700;color:${closeCol}">${pct>=0?'+':''}${pct?.toFixed(2)}% &nbsp;·&nbsp; ${xKar>=0?'+':''}${xKar?.toFixed(2)}x</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
+        <div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Giriş</div>
+          <div style="font-size:17px;font-weight:900">$${fmt(entry,d)}</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Kapanış</div>
+          <div style="font-size:17px;font-weight:900;color:${closeCol}">$${fmt(p.closePrice,d)}</div>
+        </div>
+      </div>
+      <div style="background:var(--bg2);border-radius:10px;padding:12px">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;font-size:11px">
+          <div><div style="color:var(--text2)">Marjin</div><div style="font-weight:800;font-size:14px">$${marjin?.toFixed(0)}</div></div>
+          <div><div style="color:var(--text2)">Kaldıraç</div><div style="font-weight:800;font-size:14px;color:#a855f7">${lev}x</div></div>
+          <div><div style="color:var(--text2)">Poz. Büyüklük</div><div style="font-weight:800;font-size:14px">$${(marjin*lev)?.toFixed(0)}</div></div>
+        </div>
+      </div>
+      ${p.reasons?.length?`<div style="background:var(--bg2);border-radius:10px;padding:12px;margin-top:8px">
+        <div style="font-size:10px;color:var(--text2);margin-bottom:6px;font-weight:700">💡 AÇILIŞ NEDENLERİ</div>
+        ${p.reasons.map(r=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">${r}</div>`).join('')}
+      </div>`:''}
+    `;
+  }
+
+  pop.style.display = 'flex';
+}
+
 // ── AI CHAT ──
 let aiChatOpen = false;
 let aiChatWatchInterval = null;
@@ -4972,6 +5164,18 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
 });
 </script>
+
+<!-- POZ DETAY POPUP -->
+<div id="pozDetayPop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:900;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:var(--bg1);border-radius:18px;width:100%;max-width:420px;overflow:hidden;animation:popIn .2s ease">
+    <div id="pozDetayHeader" style="padding:18px 18px 14px;position:relative">
+      <button onclick="$('pozDetayPop').style.display='none'" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,.1);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:15px;font-weight:900">✕</button>
+      <div id="pozDetayTitle" style="font-size:22px;font-weight:900;margin-bottom:4px"></div>
+      <div id="pozDetaySubtitle" style="font-size:12px;opacity:.8"></div>
+    </div>
+    <div id="pozDetayBody" style="padding:16px"></div>
+  </div>
+</div>
 
 </body>
 </html>
