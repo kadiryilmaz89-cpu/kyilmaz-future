@@ -4526,6 +4526,7 @@ function renderAITrader(){
       const pnlUsd=p.marjin*p.lev*pct/100;
       totalOpenPnl+=pnlUsd;
       const d=p.entry>100?2:6;
+      const age=Math.round((Date.now()-p.openTime)/3600000);
       const posIdx=aiPositions.indexOf(p);
       return`<div onclick="showVPDetay(aiPositions[${posIdx}],true)" style="cursor:pointer;background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:5px;border-left:3px solid ${pct>=0?'var(--green)':'var(--red)'}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:3px">
