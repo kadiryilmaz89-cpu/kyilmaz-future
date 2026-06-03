@@ -3423,7 +3423,8 @@ function renderPerfContent(tab){
       const toTP=p.dir==='LONG'?((p.tp1-cur)/cur*100):((cur-p.tp1)/p.tp1*100);
       const toSL=Math.abs(p.dir==='LONG'?(cur-p.sl)/cur*100:(p.sl-cur)/p.sl*100);
       const nearLiq=Math.abs(cur-p.liq)/p.liq*100<5;
-      return`<div style="background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:5px;border-left:3px solid ${pct>=0?'var(--green)':'var(--red)'}">
+      const vpIdx=vp.indexOf(p);
+      return`<div onclick="showVPDetay(getVP(currentPerfSource)[${vpIdx}],true)" style="background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:5px;border-left:3px solid ${pct>=0?'var(--green)':'var(--red)'}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:3px">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span style="font-size:13px;font-weight:800">${p.sym.replace('USDT','')}</span>
@@ -3469,7 +3470,8 @@ function renderPerfContent(tab){
         const ico=p.status==='win'?'✅':p.status==='loss'?'❌':'⏳';
         const col=p.status==='win'?'var(--green)':p.status==='loss'?'var(--red)':'var(--text2)';
         const age=Math.round((Date.now()-p.entryTime)/3600000);
-        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:4px;border-left:3px solid ${col}">
+        const vpIdx2=vp.indexOf(p);
+        return`<div onclick="showVPDetay(getVP(currentPerfSource)[${vpIdx2}],false)" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:4px;border-left:3px solid ${col}">
           <div style="display:flex;align-items:center;gap:7px">
             <span style="font-size:14px">${ico}</span>
             <div>
@@ -4524,8 +4526,8 @@ function renderAITrader(){
       const pnlUsd=p.marjin*p.lev*pct/100;
       totalOpenPnl+=pnlUsd;
       const d=p.entry>100?2:6;
-      const age=Math.round((Date.now()-p.openTime)/3600000);
-      return`<div style="background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:5px;border-left:3px solid ${pct>=0?'var(--green)':'var(--red)'}">
+      const posIdx=aiPositions.indexOf(p);
+      return`<div onclick="showVPDetay(aiPositions[${posIdx}],true)" style="cursor:pointer;"background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:5px;border-left:3px solid ${pct>=0?'var(--green)':'var(--red)'}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:3px">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:13px;font-weight:800">${p.sym.replace('USDT','')}</span>
@@ -4560,9 +4562,10 @@ function renderAITrader(){
     $('aiClosedPositions').innerHTML=aiHistory.slice(0,10).map(p=>{
       const ico=p.status==='win'||p.closePnl>0?'✅':p.status==='loss'?'❌':'⏳';
       const col=p.closePnl>=0?'var(--green)':'var(--red)';
+      const histIdx=aiHistory.indexOf(p);
       const age=Math.round((Date.now()-p.openTime)/3600000);
       const closeReason=p.status==='win'?'TP Vurdu':p.status==='loss'?'SL Vurdu':'Süre Doldu';
-      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:4px;border-left:3px solid ${col}">
+      return`<div onclick="showVPDetay(aiHistory[${histIdx}],false)" style="cursor:pointer;"display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:4px;border-left:3px solid ${col}">
         <div style="display:flex;align-items:center;gap:7px">
           <span>${ico}</span>
           <div>
@@ -4705,6 +4708,31 @@ setInterval(()=>{if(wl.length)fetchWLData();},30000); // takip listesi 30sn'de b
 </div>
 
 <script>
+// ── VP (Sanal Poz) DETAY POPUP ──
+function showVPDetay(p, isOpen){
+  if(!p) return;
+  // VP pozları entryPrice kullanıyor, AI pozları entry — normalize et
+  const np = {
+    sym: p.sym,
+    dir: p.dir,
+    entry: p.entry || p.entryPrice,
+    sl: p.sl,
+    tp1: p.tp1,
+    tp2: p.tp2,
+    marjin: p.marjin || p.size || VP_SIZE,
+    lev: p.lev || VP_LEV,
+    openTime: p.openTime || p.entryTime || Date.now(),
+    halfClosed: p.halfClosed || p.trailingActive,
+    reasons: p.reasons || p.onaylar || [],
+    closePnl: p.closePnl,
+    closePrice: p.closePrice,
+    closePct: p.closePct,
+    status: p.status,
+    confirm: p.confirm || ''
+  };
+  showPozDetay(np, isOpen);
+}
+
 // ── POZ DETAY POPUP ──
 function showPozDetay(p, isOpen){
   const pop = $('pozDetayPop');
