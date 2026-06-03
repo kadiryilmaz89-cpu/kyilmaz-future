@@ -4527,7 +4527,7 @@ function renderAITrader(){
       totalOpenPnl+=pnlUsd;
       const d=p.entry>100?2:6;
       const posIdx=aiPositions.indexOf(p);
-      return`<div onclick="showVPDetay(aiPositions[${posIdx}],true)" style="cursor:pointer;"background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:5px;border-left:3px solid ${pct>=0?'var(--green)':'var(--red)'}">
+      return`<div onclick="showVPDetay(aiPositions[${posIdx}],true)" style="cursor:pointer;background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:5px;border-left:3px solid ${pct>=0?'var(--green)':'var(--red)'}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:3px">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:13px;font-weight:800">${p.sym.replace('USDT','')}</span>
@@ -4565,7 +4565,7 @@ function renderAITrader(){
       const histIdx=aiHistory.indexOf(p);
       const age=Math.round((Date.now()-p.openTime)/3600000);
       const closeReason=p.status==='win'?'TP Vurdu':p.status==='loss'?'SL Vurdu':'Süre Doldu';
-      return`<div onclick="showVPDetay(aiHistory[${histIdx}],false)" style="cursor:pointer;"display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:4px;border-left:3px solid ${col}">
+      return`<div onclick="showVPDetay(aiHistory[${histIdx}],false)" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:4px;border-left:3px solid ${col}">
         <div style="display:flex;align-items:center;gap:7px">
           <span>${ico}</span>
           <div>
