@@ -1499,14 +1499,27 @@ function renderEFormulu(){
     }
   });
 
-  // 4+ onay gelince otomatik popup aç
-  liste.filter(f=>f.onayCount>=4).forEach(f=>{
+  // 3+ onay gelince anında popup + bildirim
+  liste.filter(f=>f.onayCount>=3).forEach(f=>{
     const key='kfef_'+f.sym;
-    const last=localStorage.getItem(key);
+    const last=parseInt(localStorage.getItem(key)||'0');
     const now=Date.now();
-    if(!last||(now-parseInt(last))>3600000){
+    if((now-last)>1800000){ // 30 dakikada bir
       localStorage.setItem(key,String(now));
+      const sym=f.sym.replace('USDT','');
+
+      // Popup
       showEFormulPop(f);
+
+      // Ses
+      try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=440;g.gain.value=0.3;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.8);o.stop(a.currentTime+0.8);}catch(e){}
+
+      // Bildirim
+      sendNotif(
+        '📉 E FORMÜLÜ: ' + sym + ' — ' + f.onayCount + '/5 Onay',
+        f.etiket + ' | 5g Pump: +' + (f.gain5d?.toFixed?.(0)||0) + '% | Bugün: ' + (f.ch?.toFixed?.(1)||0) + '%',
+        'eformul-' + f.sym
+      );
     }
   });
 
@@ -4127,20 +4140,31 @@ function renderMasterSignal() {
   try{ localStorage.setItem('kyilmaz:ai:positions', JSON.stringify(aiPositions)); }catch(e){}
   if(typeof renderAIPositions==='function') renderAIPositions();
 
-  // Alarm
+  // Alarm - her yeni sinyal için anında popup + bildirim
   const now = Date.now();
   results.slice(0,2).forEach(best=>{
-    if(!lastMasterAlert[best.sym]||(now-lastMasterAlert[best.sym])>3600000){
-      lastMasterAlert[best.sym]=now;
+    const key = 'kfmaster_'+best.sym+'_'+(best.isLong?'L':'S');
+    const last = parseInt(localStorage.getItem(key)||'0');
+    if((now-last) > 1800000){ // 30 dakikada bir
+      localStorage.setItem(key, String(now));
       const sym=best.sym.replace('USDT','');
-      showTicker('🎯 MASTER SİNYAL: '+sym+' '+(best.isLong?'LONG':'SHORT')+' — Skor '+best.masterScore+'/100');
+      const dir=best.isLong?'▲ LONG':'▼ SHORT';
+
+      // Ticker
+      showTicker('🎯 EN GÜÇLÜ SİNYAL: '+sym+' '+dir+' — Skor '+best.masterScore+'/100');
+
+      // Ses
+      try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=best.isLong?660:440;g.gain.value=0.3;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.8);o.stop(a.currentTime+0.8);}catch(e){}
+
       // Tarayıcı bildirimi
       sendNotif(
-        '🎯 ' + sym + ' ' + (best.isLong?'▲ LONG':'▼ SHORT') + ' — ' + best.masterScore + '/100',
+        '🎯 ' + sym + ' ' + dir + ' — ' + best.masterScore + '/100',
         'Giriş: $' + best.price + ' | TP1: $' + (best.tp1?.toFixed?.(4)||'-') + ' | SL: $' + (best.sl?.toFixed?.(4)||'-'),
         'master-' + best.sym
       );
-      try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=best.isLong?660:440;g.gain.value=0.3;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.6);o.stop(a.currentTime+0.6);}catch(e){}
+
+      // Popup
+      setTimeout(()=>{ if(typeof showMasterSignalPop==='function') showMasterSignalPop(0); }, 500);
     }
   });
 
