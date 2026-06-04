@@ -2676,22 +2676,32 @@ async function renderNews(){
   try{
     let items = [];
 
-    // 0. Türkçe kaynak - CoinTurk RSS
-    try{
-      const r = await fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent('https://cointurk.com/feed'), {signal:AbortSignal.timeout(6000)});
-      if(r.ok){
-        const d = await r.json();
-        if(d.items?.length){
-          items = d.items.slice(0,10).map(i=>({
-            title: i.title,
-            source: 'CoinTurk',
-            link: i.link||'',
-            pubDate: i.pubDate||new Date().toISOString(),
-            description: i.description?.replace(/<[^>]+>/g,'').slice(0,200)||''
-          }));
+    // 0. Türkçe kaynaklar - sırayla dene
+    const turkishSources = [
+      'https://kriptofoni.com/feed/',
+      'https://cryptonews.com/tr/feed/',
+      'https://cointurk.com/feed/',
+      'https://tr.beincrypto.com/feed/'
+    ];
+
+    for(const rssUrl of turkishSources){
+      if(items.length) break;
+      try{
+        const r = await fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(rssUrl)+'&count=12', {signal:AbortSignal.timeout(6000)});
+        if(r.ok){
+          const d = await r.json();
+          if(d.items?.length){
+            items = d.items.map(i=>({
+              title: i.title,
+              source: d.feed?.title||'Kripto TR',
+              link: i.link||'',
+              pubDate: i.pubDate||new Date().toISOString(),
+              description: i.description?.replace(/<[^>]+>/g,'').slice(0,300)||''
+            }));
+          }
         }
-      }
-    } catch(e){}
+      } catch(e){}
+    }
 
     // 1. cryptocurrency.cv - key gerekmez, CORS açık
     try{
