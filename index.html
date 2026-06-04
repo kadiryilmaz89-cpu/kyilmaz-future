@@ -2676,6 +2676,23 @@ async function renderNews(){
   try{
     let items = [];
 
+    // 0. Türkçe kaynak - CoinTurk RSS
+    try{
+      const r = await fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent('https://cointurk.com/feed'), {signal:AbortSignal.timeout(6000)});
+      if(r.ok){
+        const d = await r.json();
+        if(d.items?.length){
+          items = d.items.slice(0,10).map(i=>({
+            title: i.title,
+            source: 'CoinTurk',
+            link: i.link||'',
+            pubDate: i.pubDate||new Date().toISOString(),
+            description: i.description?.replace(/<[^>]+>/g,'').slice(0,200)||''
+          }));
+        }
+      }
+    } catch(e){}
+
     // 1. cryptocurrency.cv - key gerekmez, CORS açık
     try{
       const r = await fetch('https://cryptocurrency.cv/api/v1/news?limit=15&lang=en', {signal:AbortSignal.timeout(6000)});
@@ -2770,17 +2787,17 @@ async function showNewsDetail(idx){
   document.getElementById('newsDetailBody').innerHTML = '<div style="color:var(--text2);font-size:12px">Groq AI analiz ediyor...</div>';
   pop.style.display = 'flex';
 
-  // Groq'tan yorum al
+  // Groq'tan Türkçe çeviri + yorum al
   try{
     const resp = await fetch('https://api.groq.com/openai/v1/chat/completions',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
       body: JSON.stringify({
         model:'llama-3.3-70b-versatile',
-        max_tokens:400,
+        max_tokens:500,
         messages:[
-          {role:'system', content:'Sen kripto piyasası uzmanısın. Kısa, net, Türkçe yorumlar yap.'},
-          {role:'user', content:`Bu haberi analiz et:\n\nBaslık: ${n.title}\n\nDetay: ${n.description}\n\nŞunları söyle:\n1. Olumlu mu olumsuz mu? (emoji ile)\n2. Kripto piyasasına etkisi ne?\n3. Hangi coinler etkilenebilir?\n4. Kısa vadeli ne beklenir?\n\nMaks 4-5 cümle.`}
+          {role:'system', content:'Sen kripto piyasası uzmanısın. Her zaman Türkçe yaz. İngilizce içerik varsa önce Türkçeye çevir.'},
+          {role:'user', content:`Şu haberi analiz et:\n\nBaşlık: ${n.title}\n\nDetay: ${n.description||'Detay yok'}\n\nBana şunları söyle:\n1. Başlığı Türkçeye çevir (eğer İngilizce ise)\n2. 📈 Olumlu mu 📉 Olumsuz mu?\n3. Kripto piyasasına etkisi ne olabilir?\n4. Hangi coinler etkilenebilir?\n5. Kısa vadeli ne beklenir?\n\nToplam 4-5 cümle, net ve kısa.`}
         ]
       })
     });
