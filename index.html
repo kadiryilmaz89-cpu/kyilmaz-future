@@ -2676,55 +2676,52 @@ async function renderNews(){
   try{
     let items = [];
 
-    // Sırayla dene - ilk çalışanı kullan
-    const tryFetch = async (url, parser) => {
-      try{
-        const r = await fetch(url, {signal: AbortSignal.timeout(5000)});
-        if(!r.ok) return null;
+    // 1. cryptocurrency.cv - key gerekmez, CORS açık
+    try{
+      const r = await fetch('https://cryptocurrency.cv/api/v1/news?limit=15&lang=en', {signal:AbortSignal.timeout(6000)});
+      if(r.ok){
         const d = await r.json();
-        return parser(d);
-      } catch(e){ return null; }
-    };
+        const news = d.data||d.news||d||[];
+        if(Array.isArray(news)&&news.length){
+          items = news.map(i=>({
+            title: i.title||i.headline,
+            source: i.source||i.publisher||'Kripto',
+            link: i.url||i.link||'',
+            pubDate: i.published_at||i.created_at||i.date||new Date().toISOString(),
+            description: i.description||i.summary||i.content||''
+          }));
+        }
+      }
+    } catch(e){}
 
-    // 1. Binance News
-    items = await tryFetch(
-      'https://www.binance.com/bapi/composite/v1/public/cms/article/catalog/list/query?catalogId=48&pageNo=1&pageSize=15',
-      d => (d?.data?.articles||[]).map(i=>({
-        title: i.title, source:'Binance', link: 'https://www.binance.com/en/support/announcement/'+i.code,
-        pubDate: new Date(i.releaseDate).toISOString(), description: i.body?.replace(/<[^>]+>/g,'').slice(0,200)||''
-      }))
-    ) || [];
-
-    // 2. CoinGecko
-    if(!items.length) items = await tryFetch(
-      'https://api.coingecko.com/api/v3/news',
-      d => (d?.data||d||[]).slice(0,15).map(i=>({
-        title: i.title||i.name, source: i.author||'CoinGecko',
-        link: i.url||'', pubDate: i.created_at||new Date().toISOString(),
-        description: i.description||''
-      }))
-    ) || [];
-
-    // 3. CoinPaprika
-    if(!items.length) items = await tryFetch(
-      'https://api.coinpaprika.com/v1/tickers/btc-bitcoin?quotes=USD',
-      d => [] // sadece test
-    ) || [];
-
-    // 4. Messari RSS via cors.sh
+    // 2. Binance Announcements
     if(!items.length){
       try{
-        const r = await fetch('https://cors.sh/https://messari.io/rss/news/all', {
-          headers:{'x-cors-api-key':'temp_'}, signal: AbortSignal.timeout(5000)
-        });
-        const xml = await r.text();
-        const matches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0,12);
-        items = matches.map(m=>{
-          const title = m[1].match(/<title><!\[CDATA\[(.*?)\]\]>/)?.[1] || m[1].match(/<title>(.*?)<\/title>/)?.[1] || '';
-          const link = m[1].match(/<link>(.*?)<\/link>/)?.[1] || '';
-          const date = m[1].match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || '';
-          return { title, source:'Messari', link, pubDate: date||new Date().toISOString(), description:'' };
-        }).filter(i=>i.title);
+        const r = await fetch('https://www.binance.com/bapi/composite/v1/public/cms/article/catalog/list/query?catalogId=48&pageNo=1&pageSize=12', {signal:AbortSignal.timeout(6000)});
+        const d = await r.json();
+        const news = d?.data?.articles||[];
+        if(news.length) items = news.map(i=>({
+          title: i.title,
+          source: 'Binance',
+          link: 'https://www.binance.com/en/support/announcement/'+i.code,
+          pubDate: new Date(i.releaseDate||Date.now()).toISOString(),
+          description: ''
+        }));
+      } catch(e){}
+    }
+
+    // 3. CoinPaprika News
+    if(!items.length){
+      try{
+        const r = await fetch('https://api.coinpaprika.com/v1/coins/btc-bitcoin/events', {signal:AbortSignal.timeout(6000)});
+        const d = await r.json();
+        if(Array.isArray(d)&&d.length) items = d.slice(0,10).map(i=>({
+          title: i.name||i.description,
+          source: 'CoinPaprika',
+          link: i.link||'',
+          pubDate: i.date||new Date().toISOString(),
+          description: i.description||''
+        }));
       } catch(e){}
     }
 
