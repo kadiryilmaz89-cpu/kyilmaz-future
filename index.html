@@ -2674,24 +2674,64 @@ async function renderNews(){
   list.innerHTML = '<div class="empty">Haberler yükleniyor...</div>';
 
   try{
-    // CoinGecko News API - key gerekmez
-    const resp = await fetch('https://api.coingecko.com/api/v3/news?per_page=20', {
-      headers:{'accept':'application/json','x-cg-demo-api-key':''}
-    });
-    const data = await resp.json();
-    const items = (data.data||data||[]).slice(0,12);
+    let items = [];
 
-    if(!items.length) throw new Error('boş');
+    // Sırayla dene - ilk çalışanı kullan
+    const tryFetch = async (url, parser) => {
+      try{
+        const r = await fetch(url, {signal: AbortSignal.timeout(5000)});
+        if(!r.ok) return null;
+        const d = await r.json();
+        return parser(d);
+      } catch(e){ return null; }
+    };
 
-    window._newsItems = items.map(i=>({
-      title: i.title||i.name,
-      link: i.url||i.link||'',
-      source: i.author||i.news_site||'CoinGecko',
-      pubDate: i.created_at||i.published_at||new Date().toISOString(),
-      description: i.description||i.text||''
-    }));
+    // 1. Binance News
+    items = await tryFetch(
+      'https://www.binance.com/bapi/composite/v1/public/cms/article/catalog/list/query?catalogId=48&pageNo=1&pageSize=15',
+      d => (d?.data?.articles||[]).map(i=>({
+        title: i.title, source:'Binance', link: 'https://www.binance.com/en/support/announcement/'+i.code,
+        pubDate: new Date(i.releaseDate).toISOString(), description: i.body?.replace(/<[^>]+>/g,'').slice(0,200)||''
+      }))
+    ) || [];
 
-    list.innerHTML = window._newsItems.map((n,i)=>{
+    // 2. CoinGecko
+    if(!items.length) items = await tryFetch(
+      'https://api.coingecko.com/api/v3/news',
+      d => (d?.data||d||[]).slice(0,15).map(i=>({
+        title: i.title||i.name, source: i.author||'CoinGecko',
+        link: i.url||'', pubDate: i.created_at||new Date().toISOString(),
+        description: i.description||''
+      }))
+    ) || [];
+
+    // 3. CoinPaprika
+    if(!items.length) items = await tryFetch(
+      'https://api.coinpaprika.com/v1/tickers/btc-bitcoin?quotes=USD',
+      d => [] // sadece test
+    ) || [];
+
+    // 4. Messari RSS via cors.sh
+    if(!items.length){
+      try{
+        const r = await fetch('https://cors.sh/https://messari.io/rss/news/all', {
+          headers:{'x-cors-api-key':'temp_'}, signal: AbortSignal.timeout(5000)
+        });
+        const xml = await r.text();
+        const matches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0,12);
+        items = matches.map(m=>{
+          const title = m[1].match(/<title><!\[CDATA\[(.*?)\]\]>/)?.[1] || m[1].match(/<title>(.*?)<\/title>/)?.[1] || '';
+          const link = m[1].match(/<link>(.*?)<\/link>/)?.[1] || '';
+          const date = m[1].match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || '';
+          return { title, source:'Messari', link, pubDate: date||new Date().toISOString(), description:'' };
+        }).filter(i=>i.title);
+      } catch(e){}
+    }
+
+    if(!items.length) throw new Error('tüm kaynaklar başarısız');
+
+    window._newsItems = items;
+    list.innerHTML = items.slice(0,12).map((n,i)=>{
       const ago = getTimeAgo(new Date(n.pubDate));
       return`<div class="news-item" onclick="showNewsDetail(${i})" style="cursor:pointer">
         <div style="font-size:10px;color:var(--text2);min-width:45px">${ago}</div>
