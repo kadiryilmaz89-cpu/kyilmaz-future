@@ -2674,37 +2674,26 @@ async function renderNews(){
   list.innerHTML = '<div class="empty">Haberler yükleniyor...</div>';
 
   try{
-    // CoinTelegraph + CoinDesk RSS proxy üzerinden çek
-    const sources = [
-      'https://cointelegraph.com/rss',
-      'https://www.coindesk.com/arc/outboundfeeds/rss/'
-    ];
-    let allItems = [];
+    // CoinGecko News API - key gerekmez
+    const resp = await fetch('https://api.coingecko.com/api/v3/news?per_page=20', {
+      headers:{'accept':'application/json','x-cg-demo-api-key':''}
+    });
+    const data = await resp.json();
+    const items = (data.data||data||[]).slice(0,12);
 
-    for(const rssUrl of sources){
-      try{
-        const url = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl) + '&count=8';
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if(data.items) allItems = allItems.concat(data.items.map(i=>({
-          title: i.title,
-          link: i.link,
-          source: data.feed?.title || 'Kripto',
-          pubDate: i.pubDate,
-          description: i.description?.replace(/<[^>]+>/g,'').slice(0,200) || ''
-        })));
-      } catch(e){}
-    }
+    if(!items.length) throw new Error('boş');
 
-    if(allItems.length === 0) throw new Error('Veri yok');
+    window._newsItems = items.map(i=>({
+      title: i.title||i.name,
+      link: i.url||i.link||'',
+      source: i.author||i.news_site||'CoinGecko',
+      pubDate: i.created_at||i.published_at||new Date().toISOString(),
+      description: i.description||i.text||''
+    }));
 
-    // Tarihe göre sırala
-    allItems.sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate));
-
-    // Haberleri göster
-    list.innerHTML = allItems.slice(0,12).map((n,i)=>{
+    list.innerHTML = window._newsItems.map((n,i)=>{
       const ago = getTimeAgo(new Date(n.pubDate));
-      return `<div class="news-item" onclick="showNewsDetail(${i})" style="cursor:pointer" data-idx="${i}">
+      return`<div class="news-item" onclick="showNewsDetail(${i})" style="cursor:pointer">
         <div style="font-size:10px;color:var(--text2);min-width:45px">${ago}</div>
         <div style="flex:1">
           <div style="font-size:12px;font-weight:600;margin-bottom:3px;line-height:1.4">${n.title}</div>
@@ -2715,9 +2704,6 @@ async function renderNews(){
         <div style="font-size:14px;color:var(--text2)">›</div>
       </div>`;
     }).join('');
-
-    // Haberleri global olarak sakla
-    window._newsItems = allItems;
 
   } catch(e){
     list.innerHTML = '<div class="empty" style="font-size:11px">Haberler yüklenemedi — internet bağlantısını kontrol edin</div>';
