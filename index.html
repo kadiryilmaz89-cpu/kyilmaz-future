@@ -2669,23 +2669,186 @@ function renderCandles(){
 }
 
 // ── HABERLER / TAKVİM ──
-function renderNews(){
-  const news=[{title:'BTC açık pozisyonları rekor — Kurumsal ilgi artıyor',sent:'pos',source:'CoinDesk',time:'2s önce'},{title:'FED faiz kararı yaklaşıyor — Kripto piyasaları temkinli',sent:'neg',source:'Reuters',time:'1s önce'},{title:'Ethereum ETF hacimleri güçlü seyrediyor',sent:'pos',source:'CoinTelegraph',time:'3s önce'},{title:'Altcoin sezonu sinyalleri — BTC dominansı düşüyor',sent:'pos',source:'CryptoNews',time:'4s önce'},{title:'Çin düzenlemeleri kripto piyasasını etkiliyor',sent:'neg',source:'Bloomberg',time:'5s önce'}];
-  $('newsList').innerHTML=news.map(n=>`<div class="news-item ${n.sent}"><div style="font-size:10px;color:var(--text2);min-width:50px">${n.time}</div><div style="flex:1"><div style="font-size:12px;font-weight:600;margin-bottom:3px">${n.title}</div><div style="display:flex;gap:6px;margin-top:3px"><span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${n.sent==='pos'?'rgba(0,212,161,.15)':'rgba(255,71,87,.15)'};color:${n.sent==='pos'?'var(--green)':'var(--red)'}">${n.sent==='pos'?'📈 Olumlu':'📉 Olumsuz'}</span><span style="font-size:10px;color:var(--text2)">${n.source}</span></div></div></div>`).join('');
+async function renderNews(){
+  const list = $('newsList');
+  list.innerHTML = '<div class="empty">Haberler yükleniyor...</div>';
+
+  try{
+    // CoinTelegraph + CoinDesk RSS proxy üzerinden çek
+    const sources = [
+      'https://cointelegraph.com/rss',
+      'https://www.coindesk.com/arc/outboundfeeds/rss/'
+    ];
+    let allItems = [];
+
+    for(const rssUrl of sources){
+      try{
+        const url = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl) + '&count=8';
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if(data.items) allItems = allItems.concat(data.items.map(i=>({
+          title: i.title,
+          link: i.link,
+          source: data.feed?.title || 'Kripto',
+          pubDate: i.pubDate,
+          description: i.description?.replace(/<[^>]+>/g,'').slice(0,200) || ''
+        })));
+      } catch(e){}
+    }
+
+    if(allItems.length === 0) throw new Error('Veri yok');
+
+    // Tarihe göre sırala
+    allItems.sort((a,b)=>new Date(b.pubDate)-new Date(a.pubDate));
+
+    // Haberleri göster
+    list.innerHTML = allItems.slice(0,12).map((n,i)=>{
+      const ago = getTimeAgo(new Date(n.pubDate));
+      return `<div class="news-item" onclick="showNewsDetail(${i})" style="cursor:pointer" data-idx="${i}">
+        <div style="font-size:10px;color:var(--text2);min-width:45px">${ago}</div>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600;margin-bottom:3px;line-height:1.4">${n.title}</div>
+          <div style="display:flex;gap:6px;margin-top:3px">
+            <span style="font-size:10px;color:var(--text2)">${n.source}</span>
+          </div>
+        </div>
+        <div style="font-size:14px;color:var(--text2)">›</div>
+      </div>`;
+    }).join('');
+
+    // Haberleri global olarak sakla
+    window._newsItems = allItems;
+
+  } catch(e){
+    list.innerHTML = '<div class="empty" style="font-size:11px">Haberler yüklenemedi — internet bağlantısını kontrol edin</div>';
+  }
 }
-function renderCalendar(){
-  $('calList').innerHTML=MACRO_EVENTS.map(e=>{
-    const d=new Date(e.time),now=Date.now(),diff=d-now;
-    const hrs=Math.floor(diff/3600000),mins=Math.round((diff%3600000)/60000);
+
+function getTimeAgo(date){
+  const diff = Date.now() - date;
+  const mins = Math.floor(diff/60000);
+  const hrs = Math.floor(diff/3600000);
+  if(mins < 1) return 'az önce';
+  if(mins < 60) return mins+'dk';
+  if(hrs < 24) return hrs+'s';
+  return Math.floor(hrs/24)+'g';
+}
+
+async function showNewsDetail(idx){
+  const n = (window._newsItems||[])[idx];
+  if(!n) return;
+
+  // Popup aç
+  const pop = document.getElementById('newsDetailPop');
+  if(!pop) return;
+
+  document.getElementById('newsDetailTitle').textContent = n.title;
+  document.getElementById('newsDetailSource').textContent = n.source + ' · ' + getTimeAgo(new Date(n.pubDate));
+  document.getElementById('newsDetailBody').innerHTML = '<div style="color:var(--text2);font-size:12px">Groq AI analiz ediyor...</div>';
+  pop.style.display = 'flex';
+
+  // Groq'tan yorum al
+  try{
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
+      body: JSON.stringify({
+        model:'llama-3.3-70b-versatile',
+        max_tokens:400,
+        messages:[
+          {role:'system', content:'Sen kripto piyasası uzmanısın. Kısa, net, Türkçe yorumlar yap.'},
+          {role:'user', content:`Bu haberi analiz et:\n\nBaslık: ${n.title}\n\nDetay: ${n.description}\n\nŞunları söyle:\n1. Olumlu mu olumsuz mu? (emoji ile)\n2. Kripto piyasasına etkisi ne?\n3. Hangi coinler etkilenebilir?\n4. Kısa vadeli ne beklenir?\n\nMaks 4-5 cümle.`}
+        ]
+      })
+    });
+    const data = await resp.json();
+    const yorum = data.choices?.[0]?.message?.content || 'Yorum alınamadı.';
+    document.getElementById('newsDetailBody').innerHTML = `
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">${n.description}</div>
+      <div style="background:rgba(168,85,247,.1);border-radius:10px;padding:12px;border-left:3px solid #a855f7">
+        <div style="font-size:10px;color:#a855f7;font-weight:700;margin-bottom:6px">🤖 KYILMAZ AI YORUMU</div>
+        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${yorum}</div>
+      </div>
+      <a href="${n.link}" target="_blank" style="display:block;margin-top:10px;font-size:11px;color:#a855f7;text-align:center">📰 Haberin tamamını oku →</a>
+    `;
+  } catch(e){
+    document.getElementById('newsDetailBody').innerHTML = '<div style="color:var(--text2);font-size:12px">AI yorumu alınamadı.</div>';
+  }
+}
+async function renderCalendar(){
+  const list = $('calList');
+
+  // Önce sabit listeyi göster
+  const now = Date.now();
+  list.innerHTML = MACRO_EVENTS.map((e,i)=>{
+    const d=new Date(e.time), diff=d-now;
+    const hrs=Math.floor(Math.abs(diff)/3600000);
+    const mins=Math.round((Math.abs(diff)%3600000)/60000);
     const soon=diff>0&&diff<2*3600000;
-    return`<div class="cal-item ${e.impact==='HIGH'?'high':''}">
-      <div style="font-size:10px;color:var(--text2);min-width:55px">${d.toLocaleString('tr-TR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-      <div><div style="font-size:12px;font-weight:700;margin-bottom:2px">${e.title} <span style="font-size:10px;padding:1px 6px;border-radius:4px;background:${e.impact==='HIGH'?'rgba(255,71,87,.2)':'rgba(255,211,42,.15)'};color:${e.impact==='HIGH'?'var(--red)':'var(--yellow)'}">● ${e.impact==='HIGH'?'ÇOK ÖNEMLİ':'ORTA'}</span></div>
-      ${diff>0?`<div style="font-size:10px;color:var(--text2)">${hrs>0?hrs+'sa ':''} ${mins}dk kaldı</div>`:'<div style="font-size:10px;color:var(--text2)">Geçti</div>'}
-      ${soon?`<div style="font-size:10px;color:var(--red);font-weight:700">⚠️ YAKIN — YENİ POZİSYON AÇMAYIN!</div>`:''}
+    const past=diff<0;
+    const col=e.impact==='HIGH'?'var(--red)':'var(--yellow)';
+    return`<div onclick="showCalDetail(${i})" style="background:var(--bg2);border-radius:8px;padding:10px;margin-bottom:5px;cursor:pointer;border-left:3px solid ${past?'var(--bg3)':col}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:700;margin-bottom:3px">${e.title}</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:10px;padding:1px 6px;border-radius:4px;background:${e.impact==='HIGH'?'rgba(255,71,87,.2)':'rgba(255,211,42,.15)'};color:${col}">${e.impact==='HIGH'?'🔴 ÇOK ÖNEMLİ':'🟡 ORTA'}</span>
+            <span style="font-size:10px;color:var(--text2)">${d.toLocaleString('tr-TR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+          </div>
+          ${soon?`<div style="font-size:10px;color:var(--red);font-weight:700;margin-top:3px">⚠️ ${hrs>0?hrs+'sa ':''} ${mins}dk kaldı — POZİSYON AÇMAYIN!</div>`:''}
+          ${past?`<div style="font-size:10px;color:var(--text2);margin-top:2px">Gerçekleşti — AI yorumu için tıkla</div>`:`<div style="font-size:10px;color:var(--text2);margin-top:2px">${hrs>0?hrs+'sa ':''} ${mins}dk kaldı · Yorum için tıkla</div>`}
+        </div>
+        <div style="font-size:18px;color:var(--text2)">›</div>
       </div>
     </div>`;
   }).join('');
+
+  window._calEvents = MACRO_EVENTS;
+}
+
+async function showCalDetail(idx){
+  const e = (window._calEvents||MACRO_EVENTS)[idx];
+  if(!e) return;
+
+  const pop = document.getElementById('newsDetailPop');
+  if(!pop) return;
+
+  const d = new Date(e.time);
+  const past = d < new Date();
+
+  document.getElementById('newsDetailTitle').textContent = '📅 ' + e.title;
+  document.getElementById('newsDetailSource').textContent = d.toLocaleString('tr-TR') + ' · ' + (e.impact==='HIGH'?'ÇOK ÖNEMLİ':'ORTA');
+  document.getElementById('newsDetailBody').innerHTML = '<div style="color:var(--text2);font-size:12px">Groq AI analiz ediyor...</div>';
+  pop.style.display = 'flex';
+
+  try{
+    const soru = past
+      ? `${e.title} ekonomik verisi açıklandı. Bu verinin kripto piyasasına etkisini analiz et. Beklentiler ne kadardı, sonuç ne oldu, BTC ve altcoinler nasıl etkilenebilir? Olumlu mu olumsuz mu? Kısa ve net Türkçe anlat.`
+      : `${e.title} ekonomik verisi yakında açıklanacak (${d.toLocaleString('tr-TR')}). Beklentiler neler? Kripto piyasası için olumlu mu olumsuz mu olabilir? BTC ve altcoinler nasıl etkilenebilir? Kısa ve net Türkçe anlat.`;
+
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
+      body: JSON.stringify({
+        model:'llama-3.3-70b-versatile',
+        max_tokens:400,
+        messages:[
+          {role:'system', content:'Sen kripto ve makroekonomi uzmanısın. Kısa, net, Türkçe yorumlar yap.'},
+          {role:'user', content: soru}
+        ]
+      })
+    });
+    const data = await resp.json();
+    const yorum = data.choices?.[0]?.message?.content || 'Yorum alınamadı.';
+    document.getElementById('newsDetailBody').innerHTML = `
+      <div style="background:rgba(168,85,247,.1);border-radius:10px;padding:12px;border-left:3px solid #a855f7">
+        <div style="font-size:10px;color:#a855f7;font-weight:700;margin-bottom:6px">🤖 KYILMAZ AI YORUMU</div>
+        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${yorum}</div>
+      </div>
+    `;
+  } catch(e){
+    document.getElementById('newsDetailBody').innerHTML = '<div style="color:var(--text2);font-size:12px">AI yorumu alınamadı.</div>';
+  }
 }
 
 // ── HEATMAP ──
@@ -5196,6 +5359,20 @@ document.addEventListener('DOMContentLoaded',()=>{
       <div id="pozDetaySubtitle" style="font-size:12px;opacity:.8"></div>
     </div>
     <div id="pozDetayBody" style="padding:16px"></div>
+  </div>
+</div>
+
+<!-- HABER/TAKVİM DETAY POPUP -->
+<div id="newsDetailPop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:900;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:var(--bg1);border-radius:16px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto">
+    <div style="padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;position:sticky;top:0;background:var(--bg1);z-index:1">
+      <div>
+        <div id="newsDetailTitle" style="font-size:15px;font-weight:800;line-height:1.4;margin-bottom:4px"></div>
+        <div id="newsDetailSource" style="font-size:10px;color:var(--text2)"></div>
+      </div>
+      <button onclick="$('newsDetailPop').style.display='none'" style="background:rgba(255,255,255,.1);border:none;color:#fff;min-width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:15px;font-weight:900">✕</button>
+    </div>
+    <div id="newsDetailBody" style="padding:16px"></div>
   </div>
 </div>
 
