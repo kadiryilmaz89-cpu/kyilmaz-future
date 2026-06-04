@@ -2676,78 +2676,47 @@ async function renderNews(){
   try{
     let items = [];
 
-    // 0. Türkçe kaynaklar - sırayla dene
-    const turkishSources = [
-      'https://kriptofoni.com/feed/',
-      'https://cryptonews.com/tr/feed/',
-      'https://cointurk.com/feed/',
-      'https://tr.beincrypto.com/feed/'
+    // Türkçe ciddi haber kaynakları - sırayla dene
+    const sources = [
+      { url:'https://tr.investing.com/rss/news.rss', name:'Investing.com TR' },
+      { url:'https://www.bloomberght.com/rss', name:'Bloomberg HT' },
+      { url:'https://www.haberturk.com/rss/ekonomi.xml', name:'Habertürk Ekonomi' },
+      { url:'https://www.ntv.com.tr/ekonomi.rss', name:'NTV Ekonomi' },
+      { url:'https://kriptofoni.com/feed/', name:'Kriptofoni' },
+      { url:'https://tr.beincrypto.com/feed/', name:'BeinCrypto TR' }
     ];
 
-    for(const rssUrl of turkishSources){
-      if(items.length) break;
+    for(const src of sources){
+      if(items.length >= 8) break;
       try{
-        const r = await fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(rssUrl)+'&count=12', {signal:AbortSignal.timeout(6000)});
-        if(r.ok){
-          const d = await r.json();
-          if(d.items?.length){
-            items = d.items.map(i=>({
-              title: i.title,
-              source: d.feed?.title||'Kripto TR',
-              link: i.link||'',
-              pubDate: i.pubDate||new Date().toISOString(),
-              description: i.description?.replace(/<[^>]+>/g,'').slice(0,300)||''
-            }));
-          }
+        const proxy = 'https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(src.url)+'&count=10';
+        const r = await fetch(proxy, {signal:AbortSignal.timeout(6000)});
+        if(!r.ok) continue;
+        const d = await r.json();
+        if(d.items?.length){
+          const parsed = d.items.map(i=>({
+            title: i.title,
+            source: src.name,
+            link: i.link||'',
+            pubDate: i.pubDate||new Date().toISOString(),
+            description: i.description?.replace(/<[^>]+>/g,'').slice(0,300)||''
+          }));
+          items = [...items, ...parsed];
         }
       } catch(e){}
     }
 
-    // 1. cryptocurrency.cv - key gerekmez, CORS açık
-    try{
-      const r = await fetch('https://cryptocurrency.cv/api/v1/news?limit=15&lang=en', {signal:AbortSignal.timeout(6000)});
-      if(r.ok){
-        const d = await r.json();
-        const news = d.data||d.news||d||[];
-        if(Array.isArray(news)&&news.length){
-          items = news.map(i=>({
-            title: i.title||i.headline,
-            source: i.source||i.publisher||'Kripto',
-            link: i.url||i.link||'',
-            pubDate: i.published_at||i.created_at||i.date||new Date().toISOString(),
-            description: i.description||i.summary||i.content||''
-          }));
-        }
-      }
-    } catch(e){}
-
-    // 2. Binance Announcements
+    // Hiçbiri çalışmazsa Binance duyuruları
     if(!items.length){
       try{
         const r = await fetch('https://www.binance.com/bapi/composite/v1/public/cms/article/catalog/list/query?catalogId=48&pageNo=1&pageSize=12', {signal:AbortSignal.timeout(6000)});
         const d = await r.json();
-        const news = d?.data?.articles||[];
-        if(news.length) items = news.map(i=>({
+        items = (d?.data?.articles||[]).map(i=>({
           title: i.title,
           source: 'Binance',
-          link: 'https://www.binance.com/en/support/announcement/'+i.code,
+          link: 'https://www.binance.com/tr/support/announcement/'+i.code,
           pubDate: new Date(i.releaseDate||Date.now()).toISOString(),
           description: ''
-        }));
-      } catch(e){}
-    }
-
-    // 3. CoinPaprika News
-    if(!items.length){
-      try{
-        const r = await fetch('https://api.coinpaprika.com/v1/coins/btc-bitcoin/events', {signal:AbortSignal.timeout(6000)});
-        const d = await r.json();
-        if(Array.isArray(d)&&d.length) items = d.slice(0,10).map(i=>({
-          title: i.name||i.description,
-          source: 'CoinPaprika',
-          link: i.link||'',
-          pubDate: i.date||new Date().toISOString(),
-          description: i.description||''
         }));
       } catch(e){}
     }
