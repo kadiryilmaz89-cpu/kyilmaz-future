@@ -3544,7 +3544,6 @@ async function flashPoll(){
   try{
     const resp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
     const tickers = await resp.json();
-    const now = Date.now();
 
     tickers.forEach(t=>{
       if(!t.symbol.endsWith('USDT')) return;
@@ -3554,37 +3553,39 @@ async function flashPoll(){
 
       if(prev && prev > 0){
         const ch = ((price - prev) / prev) * 100;
-        if(Math.abs(ch) >= 1){ // 30 saniyede %1+
+        if(Math.abs(ch) >= 1){
           const f = allFutures.find(x=>x.sym===sym);
-          const entry = {sym, price, signalPrice:price, signalTime:Date.now(), chPct:ch?.toFixed(2), up:ch>0, time:new Date().toLocaleTimeString("tr-TR"), sig:f?.sig||"BEKLE", conf:f?.confidence||0};
+          const entry = {sym, price, signalPrice:price, signalTime:Date.now(), chPct:ch.toFixed(2), up:ch>0, time:new Date().toLocaleTimeString('tr-TR'), sig:(f&&f.sig)||'BEKLE', conf:(f&&f.confidence)||0};
           const ex = flashData.findIndex(x=>x.sym===sym);
           if(ex>=0){ flashData.splice(ex,1); flashData.unshift(entry); } else { flashData.unshift(entry); }
           flashData = flashData.slice(0,15);
           const hEx = flashHistory.findIndex(x=>x.sym===sym);
           if(hEx>=0) flashHistory.splice(hEx,1);
-          flashHistory.unshift({...entry});
+          flashHistory.unshift(Object.assign({},entry));
           flashHistory = flashHistory.slice(0,20);
-          if(Math.abs(ch)>=1){ showTicker(`⚡ FLASH: ${sym.replace("USDT","")} ${ch>0?"📈":"📉"} ${ch>=0?"+":""}${ch?.toFixed(2)}%`); }
-          if(Math.abs(ch)>=1){ showTicker(`⚡ FLASH: ${sym.replace('USDT','')} ${ch>0?'📈':'📉'} ${ch>=0?'+':''}${ch?.toFixed(2)}%`); }
-        } // if ch>=1
-      } // if prev
+          if(Math.abs(ch)>=1) showTicker('⚡ FLASH: '+sym.replace('USDT','')+(ch>0?' 📈':' 📉')+(ch>=0?' +':' ')+ch.toFixed(2)+'%');
+        }
+      }
 
-      // Tick ve 5dk high güncelle
+      // Fiyat kaydet
+      if(!window._tickPrices) window._tickPrices={};
+      if(!window._tickPrices[sym]) window._tickPrices[sym]=[];
+      window._tickPrices[sym].push(price);
       if(window._tickPrices[sym].length>5) window._tickPrices[sym].shift();
       if(!window._priceHigh5m) window._priceHigh5m={};
       const h5r = window._priceHigh5m[sym];
       if(!h5r || price > h5r.high || (Date.now()-h5r.time)>300000){
         window._priceHigh5m[sym] = {high: price, time: Date.now()};
       }
+      _flashPrevPrices[sym] = price;
     });
 
     updateFlash();
-    const timeEl = $('flashTime');
+    const timeEl = document.getElementById('flashTime');
     if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 
   } catch(e){}
 }
-
 // Her 30 saniyede bir çalıştır
 setInterval(flashPoll, 30000);
 // İlk çalıştırma — başlangıç fiyatlarını kaydet
