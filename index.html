@@ -3395,11 +3395,53 @@ function startWebSocket(){
     }catch{}
   };
 }
+// ── FLASH POLLİNG — Her 30 saniyede tüm coinleri karşılaştır ──
+let _flashPrevPrices = {};
+let _flashLastPoll = 0;
+
+async function flashPoll(){
+  try{
+    const resp = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+    const tickers = await resp.json();
+    const now = Date.now();
+
+    tickers.forEach(t=>{
+      if(!t.symbol.endsWith('USDT')) return;
+      const sym = t.symbol;
+      const price = parseFloat(t.lastPrice);
+      const prev = _flashPrevPrices[sym];
+
+      if(prev && prev > 0){
+        const ch = ((price - prev) / prev) * 100;
+        if(Math.abs(ch) >= 1){ // 30 saniyede %1+
+          const f = allFutures.find(x=>x.sym===sym);
+          const ex = flashData.findIndex(x=>x.sym===sym);
+          const entry = {sym, price, chPct:ch?.toFixed(2), up:ch>0, time:new Date().toLocaleTimeString('tr-TR'), sig:f?.sig||'BEKLE', conf:f?.confidence||0};
+          if(ex>=0) flashData[ex]=entry; else flashData.unshift(entry);
+          flashData = flashData.slice(0,15);
+          if(Math.abs(ch)>=1){
+            showTicker(`⚡ FLASH: ${sym.replace('USDT','')} ${ch>0?'📈':'📉'} ${ch>=0?'+':''}${ch?.toFixed(2)}%`);
+          }
+        }
+      }
+      _flashPrevPrices[sym] = price;
+    });
+
+    updateFlash();
+    const timeEl = $('flashTime');
+    if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+  } catch(e){}
+}
+
+// Her 30 saniyede bir çalıştır
+setInterval(flashPoll, 30000);
+// İlk çalıştırma — başlangıç fiyatlarını kaydet
+flashPoll();
+
 function updateFlash(){
   if(!flashData.length){$('flashGrid').innerHTML='<div class="empty" style="grid-column:1/-1">%1+ değişim izleniyor...</div>';return;}
   $('flashGrid').innerHTML=flashData.map(f=>`<div class="flash-card ${f.up?'up':'down'}" onclick="showDetail('${f.sym}')"><div style="font-size:12px;font-weight:800;margin-bottom:2px">${f.sym.replace('USDT','')}</div><div style="font-size:15px;font-weight:800;color:${f.up?'var(--green)':'var(--red)'}">${f.up?'+':''}${f.chPct}%</div><div style="font-size:10px;color:var(--text2)">$${fmt(f.price,f.price>100?2:6)}</div><div style="font-size:9px;color:var(--text2);margin-top:2px">${f.time}</div></div>`).join('');
-
-  // LONG fırsat panelini güncelle
   renderLongOpportunities();
 }
 function showTicker(msg){$('ticker').classList.add('show');$('tickerInner').innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:6px"><span class="tdot"></span>${msg}</span>`.repeat(4);clearTimeout(window._tTO);window._tTO=setTimeout(()=>$('ticker').classList.remove('show'),30000);}
