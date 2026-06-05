@@ -3619,21 +3619,44 @@ function renderFlashHistory(){
   const el = $('flashHistoryGrid');
   if(!el || !flashHistory.length) return;
   const now = Date.now();
-  el.innerHTML = flashHistory.map(f=>{
+
+  // Sinyal fiyatına göre ayır
+  const items = flashHistory.map(f=>{
     const curFut = allFutures.find(x=>x.sym===f.sym);
     const curPrice = parseFloat(curFut?.price||f.price)||0;
     const sigPrice = f.signalPrice||f.price;
     const pct = sigPrice>0?((curPrice-sigPrice)/sigPrice*100):0;
-    const isUp = pct>=0;
-    const col = isUp?'var(--green)':'var(--red)';
+    const isAbove = pct>=0;
     const ago = Math.round((now-(f.signalTime||now))/60000);
-    return`<div onclick="showDetail('${f.sym}')" style="background:var(--bg2);border-radius:8px;padding:6px 8px;cursor:pointer;border-left:2px solid ${col};display:flex;align-items:center;justify-content:space-between;gap:6px">
-      <div style="font-size:11px;font-weight:800;min-width:40px">${f.sym.replace('USDT','')}</div>
-      <div style="font-size:10px;color:${f.up?'var(--green)':'var(--red)'};">${f.up?'+':''}${f.chPct}%</div>
-      <div style="font-size:10px;color:${col};font-weight:700">${isUp?'+':''}${pct?.toFixed(1)}%</div>
-      <div style="font-size:9px;color:var(--text2)">${ago}dk</div>
+    const sigTime = f.signalTime ? new Date(f.signalTime).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '';
+    return {f, pct, isAbove, ago, curPrice, sigPrice, sigTime};
+  });
+
+  const yukselenler = items.filter(x=>x.isAbove);
+  const dusenler = items.filter(x=>!x.isAbove);
+
+  const renderItem = (x)=>{
+    const bg = x.isAbove ? 'rgba(0,212,161,.08)' : 'rgba(255,71,87,.08)';
+    const borderCol = x.isAbove ? 'var(--green)' : 'var(--red)';
+    const pctCol = x.isAbove ? 'var(--green)' : 'var(--red)';
+    return`<div onclick="showDetail('${x.f.sym}')" style="background:${bg};border-radius:8px;padding:7px 10px;cursor:pointer;border-left:2px solid ${borderCol};display:grid;grid-template-columns:80px 1fr 1fr 1fr;align-items:center;gap:6px">
+      <div style="font-size:12px;font-weight:900">${x.f.sym.replace('USDT','')}</div>
+      <div style="font-size:11px;color:${x.f.up?'var(--green)':'var(--red)'};font-weight:700">${x.f.up?'+':''}${x.f.chPct}% <span style="font-size:9px;color:var(--text2)">sinyal</span></div>
+      <div style="font-size:12px;color:${pctCol};font-weight:800;text-align:center">${x.pct>=0?'+':''}${x.pct?.toFixed(1)}% <span style="font-size:9px;color:var(--text2)">şimdi</span></div>
+      <div style="font-size:9px;color:var(--text2);text-align:right">${x.sigTime} · ${x.ago}dk</div>
     </div>`;
-  }).join('');
+  };
+
+  let html = '';
+  if(yukselenler.length){
+    html += `<div style="font-size:10px;font-weight:800;color:var(--green);margin:6px 0 4px">📈 Sinyal Fiyatının Üstünde (${yukselenler.length})</div>`;
+    html += yukselenler.map(renderItem).join('');
+  }
+  if(dusenler.length){
+    html += `<div style="font-size:10px;font-weight:800;color:var(--red);margin:8px 0 4px">📉 Sinyal Fiyatının Altında (${dusenler.length})</div>`;
+    html += dusenler.map(renderItem).join('');
+  }
+  el.innerHTML = html || '<div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>';
 }
 function showTicker(msg){$('ticker').classList.add('show');$('tickerInner').innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:6px"><span class="tdot"></span>${msg}</span>`.repeat(4);clearTimeout(window._tTO);window._tTO=setTimeout(()=>$('ticker').classList.remove('show'),30000);}
 
