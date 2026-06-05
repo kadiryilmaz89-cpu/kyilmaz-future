@@ -3272,15 +3272,18 @@ function updateLearnGrid(){
 // ── WEBSOCKET ──
 function startWebSocket(){
   if(ws){try{ws.close();}catch{}}
-  const top=['!miniTicker@arr'];
-  ws=new WebSocket('wss://fstream.binance.com/ws/!miniTicker@arr');
+  // Tüm taranmış coinleri izle
+  const symbols = allFutures.map(f=>f.sym.toLowerCase()+'@miniTicker');
+  // Binance max 200 stream destekler
+  const top = symbols.slice(0,200);
+  ws=new WebSocket(`wss://fstream.binance.com/stream?streams=${top.join('/')}`);
   ws.onopen=()=>{$('wsDot').classList.add('live');$('wsStatus').textContent='● WS Bağlı';$('wsStatus').style.color='var(--green)';};
   ws.onclose=()=>{$('wsDot').classList.remove('live');$('wsStatus').textContent='○ Kesildi';$('wsStatus').style.color='var(--red)';setTimeout(startWebSocket,5000);};
   ws.onmessage=e=>{
     try{
       const parsed=JSON.parse(e.data);
-      const tickers = Array.isArray(parsed) ? parsed : [parsed];
-      tickers.forEach(d=>{
+      // fstream multi-stream: {stream:"xxx@miniTicker", data:{...}}
+      const d = parsed.data || parsed;
       if(!d?.s)return;
       const sym=d.s,price=parseFloat(d.c),prev=minute1Prices[sym];
       const now=Date.now();
@@ -3389,7 +3392,6 @@ function startWebSocket(){
           showRelatedAlert(coinName, moveCh, w.trigger, w.corr);
         }
       }
-      }); // forEach sonu
     }catch{}
   };
 }
