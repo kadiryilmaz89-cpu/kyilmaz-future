@@ -491,7 +491,7 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
     <div style="font-size:13px;font-weight:800;color:var(--green)">🚀 LONG Fırsatları <small style="font-size:10px;font-weight:400;color:var(--text2)">— Anlık yükselenler puanlanıyor</small></div>
     <span style="font-size:10px;color:var(--text2)" id="longOppTime">İzleniyor...</span>
   </div>
-  <div id="longOppGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
+  <div id="longOppGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
     <div class="empty" style="grid-column:1/-1;font-size:11px">WebSocket bağlanıyor...</div>
   </div>
 </div>
@@ -1750,13 +1750,30 @@ function renderLongOpportunities(){
   const timeEl = $('longOppTime');
   if(!grid) return;
 
-  // Sadece yükselen flashData coinleri
   const longCands = flashData.filter(f=>f.up).map(f=>{
     const futCoin = allFutures.find(x=>x.sym===f.sym);
     if(!futCoin) return null;
     const score = calcLongScore(futCoin, f);
-    return { ...f, score, futCoin };
-  }).filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,6);
+    // Kriter açıklaması
+    const kriterler = [];
+    if(parseFloat(f.chPct)>=1) kriterler.push('1dk %'+f.chPct);
+    const kl1h = klinesMap1h[futCoin.sym];
+    if(kl1h?.length>=10){
+      const son1h=kl1h[kl1h.length-1];
+      const avg=kl1h.slice(-25,-1).reduce((a,k)=>a+k.v*k.c,0)/24;
+      const ratio=avg>0?(son1h.v*son1h.c)/avg:0;
+      if(ratio>=1.35) kriterler.push('Hacim '+ratio.toFixed(1)+'x');
+    }
+    const kl15=klinesMap15m[futCoin.sym];
+    if(kl15?.length>=3){
+      const yesil=kl15.slice(-3).filter(k=>k.c>k.o).length;
+      if(yesil>=2) kriterler.push(yesil+'/3 yeşil');
+    }
+    if(futCoin.rsi<45) kriterler.push('RSI '+futCoin.rsi?.toFixed(0));
+    const fr=fundingData.find(x=>x.sym===futCoin.sym);
+    if(fr?.rate<0) kriterler.push('Funding '+fr.rate?.toFixed(3)+'%');
+    return { ...f, score, futCoin, kriterler };
+  }).filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,10);
 
   if(!longCands.length){
     grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Yükselen coin izleniyor...</div>';
@@ -1766,22 +1783,17 @@ function renderLongOpportunities(){
   if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
 
   grid.innerHTML = longCands.map(c=>{
-    const scoreCol = c.score>=80?'var(--green)':c.score>=50?'var(--yellow)':'var(--text2)';
-    const scoreLabel = c.score>=80?'🔴 GÜÇLÜ':c.score>=50?'🟡 ORTA':'⚪ ZAYIF';
+    const s = c.score;
+    const bg = s>=80?'rgba(0,212,161,.25)':s>=50?'rgba(0,212,161,.13)':'rgba(0,212,161,.06)';
+    const border = s>=80?'rgba(0,212,161,.8)':s>=50?'rgba(0,212,161,.4)':'rgba(0,212,161,.2)';
+    const textCol = s>=80?'#00d4a1':s>=50?'#00b88a':'#007a5e';
     const d = c.futCoin.price>100?2:6;
-    return`<div onclick="showDetail('${c.sym}')" style="background:rgba(0,212,161,.07);border:1px solid rgba(0,212,161,.3);border-radius:10px;padding:10px;cursor:pointer">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:13px;font-weight:900">${c.sym.replace('USDT','')}</span>
-        <span style="font-size:10px;font-weight:800;color:${scoreCol}">${scoreLabel}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:12px;color:var(--green);font-weight:700">+${c.chPct}% <span style="font-size:10px;color:var(--text2)">1dk</span></span>
-        <span style="font-size:11px;font-weight:900;color:${scoreCol}">${c.score}/100</span>
-      </div>
-      <div style="background:var(--bg3);border-radius:4px;height:5px;overflow:hidden">
-        <div style="width:${c.score}%;height:100%;background:${scoreCol};border-radius:4px;transition:width .3s"></div>
-      </div>
-      <div style="font-size:10px;color:var(--text2);margin-top:4px">$${fmt(c.futCoin.price,d)}</div>
+    return`<div onclick="showDetail('${c.sym}')" style="background:${bg};border:1.5px solid ${border};border-radius:10px;padding:10px;cursor:pointer;text-align:center">
+      <div style="font-size:12px;font-weight:900;margin-bottom:4px">${c.sym.replace('USDT','')}</div>
+      <div style="font-size:26px;font-weight:900;color:${textCol};line-height:1">${s}</div>
+      <div style="font-size:9px;color:${textCol};font-weight:700;margin-bottom:4px">/100</div>
+      <div style="font-size:11px;color:var(--green);font-weight:700">+${c.chPct}%</div>
+      <div style="font-size:9px;color:var(--text2);margin-top:3px">${c.kriterler.slice(0,2).join(' · ')}</div>
     </div>`;
   }).join('');
 }
