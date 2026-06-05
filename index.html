@@ -3273,14 +3273,13 @@ function updateLearnGrid(){
 function startWebSocket(){
   if(ws){try{ws.close();}catch{}}
   const top=['!miniTicker@arr'];
-  ws=new WebSocket(`wss://stream.binance.com:9443/stream?streams=${top.join('/')}`);
+  ws=new WebSocket('wss://fstream.binance.com/ws/!miniTicker@arr');
   ws.onopen=()=>{$('wsDot').classList.add('live');$('wsStatus').textContent='● WS Bağlı';$('wsStatus').style.color='var(--green)';};
   ws.onclose=()=>{$('wsDot').classList.remove('live');$('wsStatus').textContent='○ Kesildi';$('wsStatus').style.color='var(--red)';setTimeout(startWebSocket,5000);};
   ws.onmessage=e=>{
     try{
       const parsed=JSON.parse(e.data);
-      // !miniTicker@arr array döndürür, tekli stream data objesi döndürür
-      const tickers = parsed.data ? (Array.isArray(parsed.data) ? parsed.data : [parsed.data]) : (Array.isArray(parsed) ? parsed : [parsed]);
+      const tickers = Array.isArray(parsed) ? parsed : [parsed];
       tickers.forEach(d=>{
       if(!d?.s)return;
       const sym=d.s,price=parseFloat(d.c),prev=minute1Prices[sym];
