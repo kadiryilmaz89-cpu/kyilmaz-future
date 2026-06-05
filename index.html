@@ -690,6 +690,7 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
 </div>
 
 <script>
+const GROQ_KEY = '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';
 const $=id=>document.getElementById(id);
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 const fmt=(n,d=2)=>n==null?'--':Number(n).toLocaleString('tr-TR',{maximumFractionDigits:d});
@@ -3998,13 +3999,20 @@ function aiEvaluateAndTrade(){
   // Poz aç
   const price = parseFloat(best.f.lastPrice||best.f.price)||0;
   if(!price) return;
+
+  // BTC karşı yöndeyse açma
+  const btcF = allFutures.find(f=>f.sym==='BTCUSDT');
+  const btcCh = parseFloat(btcF?.ch||0);
+  if(best.dir==='LONG' && btcCh < -2) return;
+  if(best.dir==='SHORT' && btcCh > 2) return;
+
   const atr = best.f.atr||price*0.015;
   const lev = aiDecideLeverage(best.score, best.vol, best.ch);
   const marjin = aiDecideMarjin(best.score, aiKasa);
 
-  const sl = best.dir==='LONG' ? price-atr*0.8 : price+atr*0.8;
+  const sl = best.dir==='LONG' ? price-atr*1.5 : price+atr*1.5;
   const tp1 = best.dir==='LONG' ? price+atr*2 : price-atr*2;
-  const tp2 = best.dir==='LONG' ? price+atr*4 : price-atr*4;
+  const tp2 = best.dir==='LONG' ? price+atr*3 : price-atr*3;
 
   const pos = {
     sym: best.sym, dir: best.dir, entry: price,
@@ -4193,7 +4201,7 @@ function calcMasterSignal() {
     const fr=fundingData.find(x=>x.sym===sym);
     const ls=lsData.find(x=>x.sym===sym);
     const atr=f.atr||price*0.015;
-    const sl=price-atr*0.8, tp1=price+atr*2, tp2=price+atr*4;
+    const sl=price-atr*1.5, tp1=price+atr*2, tp2=price+atr*3;
     const reasons=[
       `🔥 Patlama ${patScore} (${anaOnay}/3 onay)`,
       sig==='LONG'?`🟢 Futures LONG %${confidence}`:`⚠️ Futures BEKLE — Güçlü patlama trendi`,
@@ -4244,7 +4252,7 @@ function calcMasterSignal() {
     const fr=fundingData.find(x=>x.sym===sym);
     const ls=lsData.find(x=>x.sym===sym);
     const atr=f.atr||price*0.015;
-    const sl=price+atr*0.8, tp1=price-atr*2, tp2=price-atr*4;
+    const sl=price+atr*1.5, tp1=price-atr*2, tp2=price-atr*3;
     const reasons=[
       `📉 Düşüş ${dusScore} (${anaOnay}/3 onay)`,
       sig==='SHORT'?`🔴 Futures SHORT %${confidence}`:`⚠️ Futures ${sig} — Güçlü düşüş trendi`,
@@ -5277,7 +5285,7 @@ GÜNCEL SİSTEM VERİLERİ:
 Kullanıcı sana bu verilere dayanarak soru soracak. Verilerde olmayan bir şeyi uydurma, "veride yok" de.`;
 }
 
-const GROQ_KEY = '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';
+
 
 async function sendAIChat(){
   const input = document.getElementById('aiChatInput');
