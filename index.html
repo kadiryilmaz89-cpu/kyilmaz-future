@@ -485,6 +485,17 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
   <div class="flash-grid" id="flashGrid"><div class="empty" style="grid-column:1/-1">WebSocket bağlanıyor...</div></div>
 </div>
 
+<!-- LONG FIRSAT PANELI -->
+<div style="background:var(--bg1);border:2px solid rgba(0,212,161,.4);border-radius:12px;padding:14px;margin-bottom:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+    <div style="font-size:13px;font-weight:800;color:var(--green)">🚀 LONG Fırsatları <small style="font-size:10px;font-weight:400;color:var(--text2)">— Anlık yükselenler puanlanıyor</small></div>
+    <span style="font-size:10px;color:var(--text2)" id="longOppTime">İzleniyor...</span>
+  </div>
+  <div id="longOppGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
+    <div class="empty" style="grid-column:1/-1;font-size:11px">WebSocket bağlanıyor...</div>
+  </div>
+</div>
+
 <!-- BALINA HAREKETLERİ -->
 <div class="section">
   <div class="section-title">🐋 Balina Hareketleri <small>— Yüksek hacim girişleri</small></div>
@@ -1688,6 +1699,91 @@ function renderMktData(){
     if(!lsData.length){$('mktGrid').innerHTML='<div class="empty" style="grid-column:1/-1">L/S alınamadı</div>';return;}
     $('mktGrid').innerHTML=lsData.map(d=>{const ol=d.longPct>65,os=d.shortPct>65;return`<div class="mkt-card"><div style="font-size:13px;font-weight:800;margin-bottom:5px">${d.sym.replace('USDT','')}</div><div style="display:flex;gap:2px;margin-bottom:4px"><div style="flex:${d.longPct};height:7px;background:var(--green);border-radius:3px 0 0 3px"></div><div style="flex:${d.shortPct};height:7px;background:var(--red);border-radius:0 3px 3px 0"></div></div><div style="font-size:10px;color:var(--text2)">🟢${d.longPct?.toFixed(1)}% 🔴${d.shortPct?.toFixed(1)}%</div><span style="font-size:10px;padding:2px 6px;border-radius:4px;margin-top:4px;display:inline-block;font-weight:600;background:${ol?'rgba(255,71,87,.15)':os?'rgba(0,212,161,.15)':'rgba(144,144,176,.1)'};color:${ol?'var(--red)':os?'var(--green)':'var(--text2)'}">${ol?'⚠️ Çok LONG':os?'🎯 Çok SHORT':'Dengeli'}</span></div>`;}).join('');
   }
+}
+
+function calcLongScore(f, flashEntry){
+  let score = 0;
+  const price = parseFloat(f.price||f.lastPrice)||0;
+  const ch = parseFloat(f.ch||f.priceChangePercent)||0;
+
+  // 1. Son 1dk %1+ yukarı hareket (20 puan)
+  if(flashEntry && flashEntry.up && parseFloat(flashEntry.chPct)>=1) score += 20;
+
+  // 2. Hacim %35+ artış - 1h vs 24h ortalama (25 puan)
+  const kl1h = klinesMap1h[f.sym];
+  if(kl1h && kl1h.length>=10){
+    const son1h = kl1h[kl1h.length-1];
+    const avg24h = kl1h.slice(-25,-1).reduce((a,k)=>a+k.v*k.c,0)/24;
+    const volRatio = avg24h>0 ? (son1h.v*son1h.c)/avg24h : 0;
+    if(volRatio >= 1.35) score += 25;
+    else if(volRatio >= 1.15) score += 12;
+  }
+
+  // 3. Son 3 mum 15m yeşil (20 puan)
+  const kl15 = klinesMap15m[f.sym];
+  if(kl15 && kl15.length>=3){
+    const son3 = kl15.slice(-3);
+    const yesil = son3.filter(k=>k.c>k.o).length;
+    if(yesil===3) score += 20;
+    else if(yesil===2) score += 10;
+  }
+
+  // 4. RSI 40 altı (20 puan)
+  if(f.rsi){
+    if(f.rsi < 35) score += 20;
+    else if(f.rsi < 45) score += 12;
+    else if(f.rsi < 55) score += 5;
+  }
+
+  // 5. Funding negatif (15 puan)
+  const fr = fundingData.find(x=>x.sym===f.sym);
+  if(fr){
+    if(fr.rate < -0.03) score += 15;
+    else if(fr.rate < 0) score += 8;
+  }
+
+  return Math.min(score, 100);
+}
+
+function renderLongOpportunities(){
+  const grid = $('longOppGrid');
+  const timeEl = $('longOppTime');
+  if(!grid) return;
+
+  // Sadece yükselen flashData coinleri
+  const longCands = flashData.filter(f=>f.up).map(f=>{
+    const futCoin = allFutures.find(x=>x.sym===f.sym);
+    if(!futCoin) return null;
+    const score = calcLongScore(futCoin, f);
+    return { ...f, score, futCoin };
+  }).filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,6);
+
+  if(!longCands.length){
+    grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Yükselen coin izleniyor...</div>';
+    return;
+  }
+
+  if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+
+  grid.innerHTML = longCands.map(c=>{
+    const scoreCol = c.score>=80?'var(--green)':c.score>=50?'var(--yellow)':'var(--text2)';
+    const scoreLabel = c.score>=80?'🔴 GÜÇLÜ':c.score>=50?'🟡 ORTA':'⚪ ZAYIF';
+    const d = c.futCoin.price>100?2:6;
+    return`<div onclick="showDetail('${c.sym}')" style="background:rgba(0,212,161,.07);border:1px solid rgba(0,212,161,.3);border-radius:10px;padding:10px;cursor:pointer">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:13px;font-weight:900">${c.sym.replace('USDT','')}</span>
+        <span style="font-size:10px;font-weight:800;color:${scoreCol}">${scoreLabel}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:12px;color:var(--green);font-weight:700">+${c.chPct}% <span style="font-size:10px;color:var(--text2)">1dk</span></span>
+        <span style="font-size:11px;font-weight:900;color:${scoreCol}">${c.score}/100</span>
+      </div>
+      <div style="background:var(--bg3);border-radius:4px;height:5px;overflow:hidden">
+        <div style="width:${c.score}%;height:100%;background:${scoreCol};border-radius:4px;transition:width .3s"></div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);margin-top:4px">$${fmt(c.futCoin.price,d)}</div>
+    </div>`;
+  }).join('');
 }
 
 function renderWhales(){
@@ -3291,6 +3387,9 @@ function startWebSocket(){
 function updateFlash(){
   if(!flashData.length){$('flashGrid').innerHTML='<div class="empty" style="grid-column:1/-1">%1+ değişim izleniyor...</div>';return;}
   $('flashGrid').innerHTML=flashData.map(f=>`<div class="flash-card ${f.up?'up':'down'}" onclick="showDetail('${f.sym}')"><div style="font-size:12px;font-weight:800;margin-bottom:2px">${f.sym.replace('USDT','')}</div><div style="font-size:15px;font-weight:800;color:${f.up?'var(--green)':'var(--red)'}">${f.up?'+':''}${f.chPct}%</div><div style="font-size:10px;color:var(--text2)">$${fmt(f.price,f.price>100?2:6)}</div><div style="font-size:9px;color:var(--text2);margin-top:2px">${f.time}</div></div>`).join('');
+
+  // LONG fırsat panelini güncelle
+  renderLongOpportunities();
 }
 function showTicker(msg){$('ticker').classList.add('show');$('tickerInner').innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:6px"><span class="tdot"></span>${msg}</span>`.repeat(4);clearTimeout(window._tTO);window._tTO=setTimeout(()=>$('ticker').classList.remove('show'),30000);}
 
