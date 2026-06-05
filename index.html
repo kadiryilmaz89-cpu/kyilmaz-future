@@ -3272,13 +3272,17 @@ function updateLearnGrid(){
 // ── WEBSOCKET ──
 function startWebSocket(){
   if(ws){try{ws.close();}catch{}}
-  const top=allFutures.slice(0,25).map(f=>f.sym.toLowerCase()+'@miniTicker');
+  const top=['!miniTicker@arr'];
   ws=new WebSocket(`wss://stream.binance.com:9443/stream?streams=${top.join('/')}`);
   ws.onopen=()=>{$('wsDot').classList.add('live');$('wsStatus').textContent='● WS Bağlı';$('wsStatus').style.color='var(--green)';};
   ws.onclose=()=>{$('wsDot').classList.remove('live');$('wsStatus').textContent='○ Kesildi';$('wsStatus').style.color='var(--red)';setTimeout(startWebSocket,5000);};
   ws.onmessage=e=>{
     try{
-      const d=JSON.parse(e.data)?.data;if(!d?.s)return;
+      const parsed=JSON.parse(e.data);
+      // !miniTicker@arr array döndürür, tekli stream data objesi döndürür
+      const tickers = parsed.data ? (Array.isArray(parsed.data) ? parsed.data : [parsed.data]) : (Array.isArray(parsed) ? parsed : [parsed]);
+      tickers.forEach(d=>{
+      if(!d?.s)return;
       const sym=d.s,price=parseFloat(d.c),prev=minute1Prices[sym];
       const now=Date.now();
 
@@ -3370,17 +3374,17 @@ function startWebSocket(){
       updatePosPrice(sym,price);
 
       // ── ANLIK İLİŞKİLİ COIN UYARISI ──
-      // Önerdiğimiz korelasyonlu coine hareket geldi mi?
       if(watchedRelated[sym] && !watchedRelated[sym].alerted){
         const w=watchedRelated[sym];
         const moveCh=((price-w.basePrice)/w.basePrice)*100;
-        if(moveCh>=2){ // %2+ hareket = tetiklendi
+        if(moveCh>=2){
           w.alerted=true;
           const coinName=sym.replace('USDT','');
           showTicker(`🔥 İLİŞKİLİ COIN HAREKETİ! ${coinName} +${moveCh?.toFixed(2)}% — ${w.trigger} yükselişinin ardından hacim girdi, takip ediyor! (kor: ${w.corr})`);
           showRelatedAlert(coinName, moveCh, w.trigger, w.corr);
         }
       }
+      }); // forEach sonu
     }catch{}
   };
 }
