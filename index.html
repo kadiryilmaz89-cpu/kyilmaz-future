@@ -488,11 +488,14 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
 <!-- LONG FIRSAT PANELI -->
 <div style="background:var(--bg1);border:2px solid rgba(0,212,161,.4);border-radius:12px;padding:14px;margin-bottom:12px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
-    <div style="font-size:13px;font-weight:800;color:var(--green)">🚀 LONG Fırsatları <small style="font-size:10px;font-weight:400;color:var(--text2)">— Anlık yükselenler puanlanıyor</small></div>
+    <div>
+      <span style="font-size:13px;font-weight:800;color:var(--green)">⚡ Değişime Göre LONG Fırsatları</span>
+      <span style="font-size:10px;color:var(--text2);margin-left:6px">80+ gir · 50-79 izle · 0-49 geç</span>
+    </div>
     <span style="font-size:10px;color:var(--text2)" id="longOppTime">İzleniyor...</span>
   </div>
-  <div id="longOppGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
-    <div class="empty" style="grid-column:1/-1;font-size:11px">WebSocket bağlanıyor...</div>
+  <div id="longOppGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">
+    <div class="empty" style="grid-column:1/-1;font-size:11px">Veri bekleniyor...</div>
   </div>
 </div>
 
@@ -1755,9 +1758,8 @@ function renderLongOpportunities(){
     const futCoin = allFutures.find(x=>x.sym===f.sym);
     if(!futCoin) return null;
     const score = calcLongScore(futCoin, f);
-    // Kriter açıklaması
     const kriterler = [];
-    if(parseFloat(f.chPct)>=1) kriterler.push('1dk %'+f.chPct);
+    if(parseFloat(f.chPct)>=1) kriterler.push('📈 '+f.chPct+'%');
     const kl1h = klinesMap1h[futCoin.sym];
     if(kl1h?.length>=10){
       const son1h=kl1h[kl1h.length-1];
@@ -1768,35 +1770,99 @@ function renderLongOpportunities(){
     const kl15=klinesMap15m[futCoin.sym];
     if(kl15?.length>=3){
       const yesil=kl15.slice(-3).filter(k=>k.c>k.o).length;
-      if(yesil>=2) kriterler.push(yesil+'/3 yeşil');
+      if(yesil>=2) kriterler.push(yesil+'/3 🕯');
     }
-    if(futCoin.rsi<45) kriterler.push('RSI '+futCoin.rsi?.toFixed(0));
+    if(futCoin.rsi && futCoin.rsi<45) kriterler.push('RSI '+futCoin.rsi?.toFixed(0));
     const fr=fundingData.find(x=>x.sym===futCoin.sym);
-    if(fr?.rate<0) kriterler.push('Funding '+fr.rate?.toFixed(3)+'%');
+    if(fr?.rate<0) kriterler.push('Fund '+fr.rate?.toFixed(3)+'%');
+
+    // 80+ popup ver
+    if(score>=80){
+      const alertKey = 'kflong80_'+f.sym;
+      const last = parseInt(localStorage.getItem(alertKey)||'0');
+      if(Date.now()-last > 1800000){
+        localStorage.setItem(alertKey, String(Date.now()));
+        showLongOppPopup(f.sym, score, futCoin, kriterler);
+        sendNotif('🚀 LONG FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'long80-'+f.sym);
+      }
+    }
+
     return { ...f, score, futCoin, kriterler };
   }).filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,10);
 
   if(!longCands.length){
-    grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Yükselen coin izleniyor...</div>';
+    grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Değişim izleniyor...</div>';
     return;
   }
 
   if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
 
-  grid.innerHTML = longCands.map(c=>{
+  // Flash panel gibi kare kartlar — 5 sütun
+  grid.style.gridTemplateColumns = 'repeat(5,1fr)';
+  grid.innerHTML = longCands.slice(0,10).map(c=>{
     const s = c.score;
-    const bg = s>=80?'rgba(0,212,161,.25)':s>=50?'rgba(0,212,161,.13)':'rgba(0,212,161,.06)';
-    const border = s>=80?'rgba(0,212,161,.8)':s>=50?'rgba(0,212,161,.4)':'rgba(0,212,161,.2)';
-    const textCol = s>=80?'#00d4a1':s>=50?'#00b88a':'#007a5e';
-    const d = c.futCoin.price>100?2:6;
-    return`<div onclick="showDetail('${c.sym}')" style="background:${bg};border:1.5px solid ${border};border-radius:10px;padding:10px;cursor:pointer;text-align:center">
-      <div style="font-size:12px;font-weight:900;margin-bottom:4px">${c.sym.replace('USDT','')}</div>
-      <div style="font-size:26px;font-weight:900;color:${textCol};line-height:1">${s}</div>
-      <div style="font-size:9px;color:${textCol};font-weight:700;margin-bottom:4px">/100</div>
-      <div style="font-size:11px;color:var(--green);font-weight:700">+${c.chPct}%</div>
-      <div style="font-size:9px;color:var(--text2);margin-top:3px">${c.kriterler.slice(0,2).join(' · ')}</div>
+    const bg = s>=80?'rgba(0,212,161,.22)':s>=50?'rgba(0,212,161,.10)':'rgba(0,212,161,.04)';
+    const border = s>=80?'rgba(0,212,161,.9)':s>=50?'rgba(0,212,161,.35)':'rgba(0,212,161,.15)';
+    const col = s>=80?'#00d4a1':s>=50?'#00b08a':'#006a5a';
+    return`<div onclick="showDetail('${c.sym}')" style="background:${bg};border:1.5px solid ${border};border-radius:10px;padding:8px 6px;cursor:pointer;text-align:center">
+      <div style="font-size:11px;font-weight:900;margin-bottom:3px">${c.sym.replace('USDT','')}</div>
+      <div style="font-size:22px;font-weight:900;color:${col};line-height:1.1">${s}</div>
+      <div style="font-size:9px;color:${col};margin-bottom:3px">/100</div>
+      <div style="font-size:10px;color:var(--green);font-weight:700">+${c.chPct}%</div>
+      <div style="font-size:8px;color:var(--text2);margin-top:2px;line-height:1.3">${c.kriterler.slice(0,2).join(' ')}</div>
     </div>`;
   }).join('');
+}
+
+function showLongOppPopup(sym, score, futCoin, kriterler){
+  const coin = sym.replace('USDT','');
+  const price = futCoin.price||0;
+  const atr = futCoin.atr||price*0.015;
+  const tp1 = price + atr*2;
+  const tp2 = price + atr*3;
+  const sl = price - atr*1.5;
+  const d = price>100?2:6;
+
+  // Ses
+  try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=660;g.gain.value=0.4;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+1);o.stop(a.currentTime+1);}catch(e){}
+
+  // Popup
+  const pop = document.getElementById('longOppPop');
+  if(!pop) return;
+  document.getElementById('longOppPopContent').innerHTML = `
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--green);font-weight:700">⚡ DEĞİŞİME GÖRE LONG FIRSATI</div>
+      <div style="font-size:26px;font-weight:900;color:#fff;margin:6px 0">${coin}/USDT</div>
+      <div style="font-size:36px;font-weight:900;color:var(--green)">${score}<span style="font-size:16px">/100</span></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;font-size:12px">
+      <div style="background:var(--bg2);border-radius:9px;padding:10px;text-align:center">
+        <div style="color:var(--text2);font-size:10px;margin-bottom:3px">Giriş</div>
+        <div style="font-weight:900;font-size:16px">$${fmt(price,d)}</div>
+      </div>
+      <div style="background:rgba(255,71,87,.15);border-radius:9px;padding:10px;text-align:center">
+        <div style="color:var(--red);font-size:10px;margin-bottom:3px">Stop Loss</div>
+        <div style="font-weight:900;color:var(--red);font-size:16px">$${fmt(sl,d)}</div>
+      </div>
+      <div style="background:rgba(0,212,161,.15);border-radius:9px;padding:10px;text-align:center">
+        <div style="color:var(--green);font-size:10px;margin-bottom:3px">TP1 (yarısı)</div>
+        <div style="font-weight:900;color:var(--green);font-size:16px">$${fmt(tp1,d)}</div>
+      </div>
+      <div style="background:rgba(0,212,161,.1);border-radius:9px;padding:10px;text-align:center">
+        <div style="color:var(--green);font-size:10px;margin-bottom:3px">TP2 (kalanı)</div>
+        <div style="font-weight:900;color:var(--green);font-size:16px">$${fmt(tp2,d)}</div>
+      </div>
+    </div>
+    <div style="background:var(--bg2);border-radius:9px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--text2)">
+      💡 TP1'e çarpınca yarısını kapat, stop'u girişe çek. TP2'de kalanı kapat.
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:14px">${kriterler.map(k=>`<span style="background:var(--bg2);padding:3px 8px;border-radius:6px;margin:2px;display:inline-block">${k}</span>`).join('')}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button onclick="$('longOppPop').style.display='none';showChart('${sym}')" style="background:rgba(0,212,161,.2);border:1px solid var(--green);color:var(--green);padding:10px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer">📊 Grafik</button>
+      <button onclick="$('longOppPop').style.display='none'" style="background:var(--bg2);border:1px solid var(--border);color:var(--text1);padding:10px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer">✕ Kapat</button>
+    </div>
+  `;
+  pop.style.display = 'flex';
 }
 
 function renderWhales(){
@@ -5671,6 +5737,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div id="newsDetailBody" style="padding:16px"></div>
   </div>
 </div>
+<!-- LONG FIRSAT POPUP -->
+<div id="longOppPop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:700;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:linear-gradient(135deg,#0a1a12,#0d1a10);border:2px solid var(--green);border-radius:18px;padding:22px;width:100%;max-width:400px;max-height:92vh;overflow-y:auto;box-shadow:0 0 40px rgba(0,212,161,.3)">
+    <button onclick="$('longOppPop').style.display='none'" style="position:absolute;top:12px;right:12px;background:rgba(0,212,161,.2);border:1px solid var(--green);color:var(--green);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:15px;font-weight:900">✕</button>
+    <div id="longOppPopContent"></div>
+  </div>
+</div>
+
 <!-- GRAFİK POPUP -->
 <div id="chartPop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:1000;flex-direction:column" onclick="if(event.target===this)$('chartPop').style.display='none'">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg1);border-bottom:1px solid var(--border)">
