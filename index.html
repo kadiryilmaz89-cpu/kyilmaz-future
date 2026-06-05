@@ -499,6 +499,14 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
   </div>
 </div>
 
+<!-- FLASH GEÇMİŞ PANELİ -->
+<div style="background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
+  <div style="font-size:12px;font-weight:800;color:var(--text2);margin-bottom:8px">📋 Son 20 Sinyal <small style="font-weight:400;font-size:10px">— Sinyal fiyatına göre yeşil/kırmızı · Yeniden sinyal alanlar öne geçer</small></div>
+  <div id="flashHistoryGrid" style="display:flex;flex-direction:column;gap:4px">
+    <div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>
+  </div>
+</div>
+
 <!-- BALINA HAREKETLERİ -->
 <div class="section">
   <div class="section-title">🐋 Balina Hareketleri <small>— Yüksek hacim girişleri</small></div>
@@ -716,6 +724,7 @@ const fillColor=s=>s>70?'#00d4a1':s>50?'#ffd32a':'#ff4757';
 let scanned=false,futTab='strong',mktTab='funding',learnPeriod='agirlik';
 let currentFutTF='15m',currentStratTF='15m',currentTkTF='4h',analyzeTF='4h';
 let allFutures=[],fundingData=[],oiData=[],lsData=[],flashData=[];
+let flashHistory=[]; // Son 20 sinyal geçmişi
 let patlamaCache=[];
 let dususCache=[];
 let oiPrevData=JSON.parse(localStorage.getItem('kfoiprev')||'[]');
@@ -1709,13 +1718,14 @@ function renderMktData(){
 function calcLongScore(f, flashEntry){
   let score = 0;
   const price = parseFloat(f.price||f.lastPrice)||0;
-  const ch = parseFloat(f.ch||f.priceChangePercent)||0;
+  const sym = f.sym;
 
-  // 1. Son 1dk %1+ yukarı hareket (20 puan)
+  // 1. Son 30sn %1+ yukarı hareket (20 puan)
   if(flashEntry && flashEntry.up && parseFloat(flashEntry.chPct)>=1) score += 20;
+  else if(flashEntry && flashEntry.up && parseFloat(flashEntry.chPct)>=0.5) score += 10;
 
   // 2. Hacim %35+ artış - 1h vs 24h ortalama (25 puan)
-  const kl1h = klinesMap1h[f.sym];
+  const kl1h = klinesMap1h[sym];
   if(kl1h && kl1h.length>=10){
     const son1h = kl1h[kl1h.length-1];
     const avg24h = kl1h.slice(-25,-1).reduce((a,k)=>a+k.v*k.c,0)/24;
@@ -1724,24 +1734,33 @@ function calcLongScore(f, flashEntry){
     else if(volRatio >= 1.15) score += 12;
   }
 
-  // 3. Son 3 mum 15m yeşil (20 puan)
-  const kl15 = klinesMap15m[f.sym];
-  if(kl15 && kl15.length>=3){
-    const son3 = kl15.slice(-3);
-    const yesil = son3.filter(k=>k.c>k.o).length;
-    if(yesil===3) score += 20;
-    else if(yesil===2) score += 10;
+  // 3. WS ardışık tick yükselişi (20 puan) — anlık momentum
+  if(!window._tickPrices) window._tickPrices = {};
+  const ticks = window._tickPrices[sym] || [];
+  if(ticks.length >= 3){
+    const son3 = ticks.slice(-3);
+    const surekliYukselen = son3[0] < son3[1] && son3[1] < son3[2];
+    const surekliYukselen2 = son3[0] < son3[1] || son3[1] < son3[2];
+    if(surekliYukselen) score += 20;      // 3 ardışık yüksek
+    else if(surekliYukselen2) score += 10; // 2/3 yüksek
   }
 
-  // 4. RSI 40 altı (20 puan)
+  // 4. Son 5dk yeni yüksek yaptı mı (20 puan)
+  if(!window._priceHigh5m) window._priceHigh5m = {};
+  const h5 = window._priceHigh5m[sym];
+  if(h5 && price > h5.high && (Date.now()-h5.time) < 300000){
+    score += 20; // Son 5dk içinde yeni high
+  }
+
+  // 5. RSI yükseliyor mu ve uygun seviyede (20 puan)
   if(f.rsi){
     if(f.rsi < 35) score += 20;
-    else if(f.rsi < 45) score += 12;
-    else if(f.rsi < 55) score += 5;
+    else if(f.rsi < 45) score += 14;
+    else if(f.rsi < 55) score += 7;
   }
 
-  // 5. Funding negatif (15 puan)
-  const fr = fundingData.find(x=>x.sym===f.sym);
+  // 6. Funding negatif (15 puan)
+  const fr = fundingData.find(x=>x.sym===sym);
   if(fr){
     if(fr.rate < -0.03) score += 15;
     else if(fr.rate < 0) score += 8;
@@ -3462,9 +3481,22 @@ function startWebSocket(){
         if(Math.abs(ch)>=0.5){ // 10 saniyede %0.5+
           const f=allFutures.find(x=>x.sym===sym);
           const ex=flashData.findIndex(x=>x.sym===sym);
-          const entry={sym,price,chPct:ch?.toFixed(2),up:ch>0,time:new Date().toLocaleTimeString('tr-TR'),sig:f?.sig||'BEKLE',conf:f?.confidence||0};
-          if(ex>=0)flashData[ex]=entry;else flashData.unshift(entry);
+          const entry={sym,price,signalPrice:price,signalTime:Date.now(),chPct:ch?.toFixed(2),up:ch>0,time:new Date().toLocaleTimeString('tr-TR'),sig:f?.sig||'BEKLE',conf:f?.confidence||0};
+          if(ex>=0){
+            // Yeniden sinyal — öne al
+            flashData.splice(ex,1);
+            flashData.unshift(entry);
+          } else {
+            flashData.unshift(entry);
+          }
           flashData=flashData.slice(0,15);
+
+          // Geçmiş listesine ekle — yeniden sinyal alanlar öne geçer
+          const hEx = flashHistory.findIndex(x=>x.sym===sym);
+          if(hEx>=0) flashHistory.splice(hEx,1);
+          flashHistory.unshift({...entry});
+          flashHistory=flashHistory.slice(0,20);
+
           updateFlash();
           if(Math.abs(ch)>=1){
             showTicker(`⚡ FLASH: ${sym.replace('USDT','')} ${ch>0?'📈':'📉'} ${ch>=0?'+':''}${ch?.toFixed(2)}% — ${f?.sig||''} %${f?.confidence||0}`);
@@ -3476,6 +3508,19 @@ function startWebSocket(){
       }
       minute1Prices[sym]=price;
       updatePosPrice(sym,price);
+
+      // Tick fiyatlarını kaydet (ardışık momentum için)
+      if(!window._tickPrices) window._tickPrices={};
+      if(!window._tickPrices[sym]) window._tickPrices[sym]=[];
+      window._tickPrices[sym].push(price);
+      if(window._tickPrices[sym].length>5) window._tickPrices[sym].shift();
+
+      // 5dk yüksek takibi
+      if(!window._priceHigh5m) window._priceHigh5m={};
+      const h5 = window._priceHigh5m[sym];
+      if(!h5 || price > h5.high || (Date.now()-h5.time)>300000){
+        window._priceHigh5m[sym] = {high: price, time: Date.now()};
+      }
 
       // ── ANLIK İLİŞKİLİ COIN UYARISI ──
       if(watchedRelated[sym] && !watchedRelated[sym].alerted){
@@ -3511,16 +3556,26 @@ async function flashPoll(){
         const ch = ((price - prev) / prev) * 100;
         if(Math.abs(ch) >= 1){ // 30 saniyede %1+
           const f = allFutures.find(x=>x.sym===sym);
+          const entry = {sym, price, signalPrice:price, signalTime:Date.now(), chPct:ch?.toFixed(2), up:ch>0, time:new Date().toLocaleTimeString("tr-TR"), sig:f?.sig||"BEKLE", conf:f?.confidence||0};
           const ex = flashData.findIndex(x=>x.sym===sym);
-          const entry = {sym, price, chPct:ch?.toFixed(2), up:ch>0, time:new Date().toLocaleTimeString('tr-TR'), sig:f?.sig||'BEKLE', conf:f?.confidence||0};
-          if(ex>=0) flashData[ex]=entry; else flashData.unshift(entry);
+          if(ex>=0){ flashData.splice(ex,1); flashData.unshift(entry); } else { flashData.unshift(entry); }
           flashData = flashData.slice(0,15);
-          if(Math.abs(ch)>=1){
-            showTicker(`⚡ FLASH: ${sym.replace('USDT','')} ${ch>0?'📈':'📉'} ${ch>=0?'+':''}${ch?.toFixed(2)}%`);
-          }
-        }
+          const hEx = flashHistory.findIndex(x=>x.sym===sym);
+          if(hEx>=0) flashHistory.splice(hEx,1);
+          flashHistory.unshift({...entry});
+          flashHistory = flashHistory.slice(0,20);
+          if(Math.abs(ch)>=1){ showTicker(`⚡ FLASH: ${sym.replace("USDT","")} ${ch>0?"📈":"📉"} ${ch>=0?"+":""}${ch?.toFixed(2)}%`); }
+          if(Math.abs(ch)>=1){ showTicker(`⚡ FLASH: ${sym.replace('USDT','')} ${ch>0?'📈':'📉'} ${ch>=0?'+':''}${ch?.toFixed(2)}%`); }
+        } // if ch>=1
+      } // if prev
+
+      // Tick ve 5dk high güncelle
+      if(window._tickPrices[sym].length>5) window._tickPrices[sym].shift();
+      if(!window._priceHigh5m) window._priceHigh5m={};
+      const h5r = window._priceHigh5m[sym];
+      if(!h5r || price > h5r.high || (Date.now()-h5r.time)>300000){
+        window._priceHigh5m[sym] = {high: price, time: Date.now()};
       }
-      _flashPrevPrices[sym] = price;
     });
 
     updateFlash();
@@ -3536,9 +3591,48 @@ setInterval(flashPoll, 30000);
 flashPoll();
 
 function updateFlash(){
-  if(!flashData.length){$('flashGrid').innerHTML='<div class="empty" style="grid-column:1/-1">%1+ değişim izleniyor...</div>';return;}
-  $('flashGrid').innerHTML=flashData.map(f=>`<div class="flash-card ${f.up?'up':'down'}" onclick="showDetail('${f.sym}')"><div style="font-size:12px;font-weight:800;margin-bottom:2px">${f.sym.replace('USDT','')}</div><div style="font-size:15px;font-weight:800;color:${f.up?'var(--green)':'var(--red)'}">${f.up?'+':''}${f.chPct}%</div><div style="font-size:10px;color:var(--text2)">$${fmt(f.price,f.price>100?2:6)}</div><div style="font-size:9px;color:var(--text2);margin-top:2px">${f.time}</div></div>`).join('');
+  const now = Date.now();
+
+  // 5dk filtresi: sinyal fiyatının altına düşenler çıkar
+  flashData = flashData.filter(f=>{
+    const curFut = allFutures.find(x=>x.sym===f.sym);
+    const curPrice = parseFloat(curFut?.price||f.price)||0;
+    const elapsed = now - (f.signalTime||now);
+    if(elapsed > 300000) return false; // 5dk geçti
+    if(f.up && curPrice < (f.signalPrice||f.price)) return false; // sinyal fiyatının altına düştü
+    return true;
+  });
+
+  if(!flashData.length){
+    $('flashGrid').innerHTML='<div class="empty" style="grid-column:1/-1">%0.5+ değişim izleniyor...</div>';
+  } else {
+    $('flashGrid').innerHTML=flashData.map(f=>`<div class="flash-card ${f.up?'up':'down'}" onclick="showDetail('${f.sym}')"><div style="font-size:12px;font-weight:800;margin-bottom:2px">${f.sym.replace('USDT','')}</div><div style="font-size:15px;font-weight:800;color:${f.up?'var(--green)':'var(--red)'}">${f.up?'+':''}${f.chPct}%</div><div style="font-size:10px;color:var(--text2)">$${fmt(f.price,f.price>100?2:6)}</div><div style="font-size:9px;color:var(--text2);margin-top:2px">${f.time}</div></div>`).join('');
+  }
+
+  // Alt geçmiş paneli
+  renderFlashHistory();
   renderLongOpportunities();
+}
+
+function renderFlashHistory(){
+  const el = $('flashHistoryGrid');
+  if(!el || !flashHistory.length) return;
+  const now = Date.now();
+  el.innerHTML = flashHistory.map(f=>{
+    const curFut = allFutures.find(x=>x.sym===f.sym);
+    const curPrice = parseFloat(curFut?.price||f.price)||0;
+    const sigPrice = f.signalPrice||f.price;
+    const pct = sigPrice>0?((curPrice-sigPrice)/sigPrice*100):0;
+    const isUp = pct>=0;
+    const col = isUp?'var(--green)':'var(--red)';
+    const ago = Math.round((now-(f.signalTime||now))/60000);
+    return`<div onclick="showDetail('${f.sym}')" style="background:var(--bg2);border-radius:8px;padding:6px 8px;cursor:pointer;border-left:2px solid ${col};display:flex;align-items:center;justify-content:space-between;gap:6px">
+      <div style="font-size:11px;font-weight:800;min-width:40px">${f.sym.replace('USDT','')}</div>
+      <div style="font-size:10px;color:${f.up?'var(--green)':'var(--red)'};">${f.up?'+':''}${f.chPct}%</div>
+      <div style="font-size:10px;color:${col};font-weight:700">${isUp?'+':''}${pct?.toFixed(1)}%</div>
+      <div style="font-size:9px;color:var(--text2)">${ago}dk</div>
+    </div>`;
+  }).join('');
 }
 function showTicker(msg){$('ticker').classList.add('show');$('tickerInner').innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:6px"><span class="tdot"></span>${msg}</span>`.repeat(4);clearTimeout(window._tTO);window._tTO=setTimeout(()=>$('ticker').classList.remove('show'),30000);}
 
