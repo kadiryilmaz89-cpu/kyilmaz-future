@@ -580,6 +580,7 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
     <button class="tab-btn active" onclick="switchPerfSource('patlama',this)">🔥 Patlama & 📉 Düşüş</button>
     <button class="tab-btn" onclick="switchPerfSource('eformul',this)">🔴 E Formülü</button>
     <button class="tab-btn" onclick="switchPerfSource('master',this)">💎 Güçlü Sinyal</button>
+    <button class="tab-btn" onclick="switchPerfSource('degisim',this)">⚡ Değişim</button>
     <button class="tab-btn" onclick="switchPerfSource('futures',this)">🔮 Futures</button>
   </div>
 
@@ -1776,14 +1777,30 @@ function renderLongOpportunities(){
     const fr=fundingData.find(x=>x.sym===futCoin.sym);
     if(fr?.rate<0) kriterler.push('Fund '+fr.rate?.toFixed(3)+'%');
 
-    // 80+ popup ver
+    // 80+ popup ver ve sanal poz aç
     if(score>=80){
       const alertKey = 'kflong80_'+f.sym;
       const last = parseInt(localStorage.getItem(alertKey)||'0');
       if(Date.now()-last > 1800000){
         localStorage.setItem(alertKey, String(Date.now()));
-        showLongOppPopup(f.sym, score, futCoin, kriterler);
-        sendNotif('🚀 LONG FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'long80-'+f.sym);
+        const futC = allFutures.find(x=>x.sym===f.sym);
+        if(futC){
+          showLongOppPopup(f.sym, score, futC, kriterler);
+          sendNotif('🚀 LONG FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'long80-'+f.sym);
+          // Sanal poz aç
+          const exists = vpDegisim.find(p=>p.sym===f.sym&&p.status==='open');
+          if(!exists){
+            const pr = parseFloat(futC.price)||0;
+            const atr = futC.atr||pr*0.015;
+            vpDegisim.push({
+              sym:f.sym, dir:'LONG', entryPrice:pr, entryTime:Date.now(),
+              sl:pr-atr*1.5, tp1:pr+atr*2, tp2:pr+atr*3,
+              score, lev:VP_LEV, size:VP_SIZE, status:'open',
+              reasons:kriterler, source:'degisim'
+            });
+            saveVP('degisim');
+          }
+        }
       }
     }
 
@@ -3641,6 +3658,7 @@ let vpStrateji=JSON.parse(localStorage.getItem('kfvp_s')||'[]');  // Otomatik st
 let vpEFormul=JSON.parse(localStorage.getItem('kfvp_e')||'[]');   // E Formülü
 let vpMaster=JSON.parse(localStorage.getItem('kfvp_m')||'[]');    // Güçlü Sinyal
 let currentPerfSource='patlama';
+let vpDegisim=JSON.parse(localStorage.getItem('kfvp_deg')||'[]');    // Değişim LONG
 let virtualPositions=[];
 
 // $1000 sanal kasa — her kaynak için
@@ -3652,25 +3670,28 @@ let kasaDusus = parseFloat(localStorage.getItem('kfkasa_d')||INITIAL_KASA);
 let kasaEFormul = parseFloat(localStorage.getItem('kfkasa_e')||INITIAL_KASA);
 let kasaMaster = parseFloat(localStorage.getItem('kfkasa_m')||INITIAL_KASA);
 
-function getKasa(src){return src==='patlama'?kasaPatlama:src==='futures'?kasaFutures:src==='dusus'?kasaDusus:src==='eformul'?kasaEFormul:src==='master'?kasaMaster:kasaStrateji;}
+let kasaDegisim = parseFloat(localStorage.getItem('kfkasa_deg')||INITIAL_KASA);
+function getKasa(src){return src==='patlama'?kasaPatlama:src==='futures'?kasaFutures:src==='dusus'?kasaDusus:src==='eformul'?kasaEFormul:src==='master'?kasaMaster:src==='degisim'?kasaDegisim:kasaStrateji;}
 function updateKasaFromClose(src, pnlUsd){
   if(src==='patlama'){kasaPatlama+=pnlUsd;localStorage.setItem('kfkasa_p',kasaPatlama);}
   else if(src==='futures'){kasaFutures+=pnlUsd;localStorage.setItem('kfkasa_f',kasaFutures);}
   else if(src==='dusus'){kasaDusus+=pnlUsd;localStorage.setItem('kfkasa_d',kasaDusus);}
   else if(src==='eformul'){kasaEFormul+=pnlUsd;localStorage.setItem('kfkasa_e',kasaEFormul);}
   else if(src==='master'){kasaMaster+=pnlUsd;localStorage.setItem('kfkasa_m',kasaMaster);}
+  else if(src==='degisim'){kasaDegisim+=pnlUsd;localStorage.setItem('kfkasa_deg',kasaDegisim);}
   else{kasaStrateji+=pnlUsd;localStorage.setItem('kfkasa_s',kasaStrateji);}
 }
 // {sym, dir, entryPrice, entryTime, sl, tp1, tp2, score, status:'open'|'win'|'loss'|'expired', closePrice, closePct}
 let signalResults=JSON.parse(localStorage.getItem('kfsr')||'[]');
 
 // Sanal pozisyon aç
-function getVP(src){return src==='patlama'?vpPatlama:src==='futures'?vpFutures:src==='eformul'?vpEFormul:src==='master'?vpMaster:vpStrateji;}
+function getVP(src){return src==='patlama'?vpPatlama:src==='futures'?vpFutures:src==='eformul'?vpEFormul:src==='master'?vpMaster:src==='degisim'?vpDegisim:vpStrateji;}
 function saveVP(src){
   if(src==='patlama')localStorage.setItem('kfvp_p',JSON.stringify(vpPatlama));
   else if(src==='futures')localStorage.setItem('kfvp_f',JSON.stringify(vpFutures));
   else if(src==='eformul')localStorage.setItem('kfvp_e',JSON.stringify(vpEFormul));
   else if(src==='master')localStorage.setItem('kfvp_m',JSON.stringify(vpMaster));
+  else if(src==='degisim')localStorage.setItem('kfvp_deg',JSON.stringify(vpDegisim));
   else localStorage.setItem('kfvp_s',JSON.stringify(vpStrateji));
   // Bulut
   cloudSave(STORAGE_KEYS.vpPatlama, vpPatlama);
@@ -3716,7 +3737,7 @@ function openVirtualPosition(f, score, dir, source){
 function checkVirtualPositions(){
   if(!allFutures.length)return;
   let changed=false;
-  ['patlama','futures','strateji','eformul','master'].forEach(src=>{
+  ['patlama','futures','strateji','eformul','master','degisim'].forEach(src=>{
     const vp=getVP(src);
     vp.forEach(p=>{
       if(p.status!=='open')return;
@@ -3847,7 +3868,7 @@ function renderPerfContent(tab){
   const src=currentPerfSource;
   const summary=calcPerfSummary(src);
   const vp=getVP(src);
-  const srcLabels={patlama:'🔥 Patlama Skoru',futures:'🔮 Futures Sinyali',strateji:'🔁 Otomatik Strateji',eformul:'🔴 E Formülü SHORT',master:'💎 Güçlü Sinyal'};
+  const srcLabels={patlama:'🔥 Patlama Skoru',futures:'🔮 Futures Sinyali',strateji:'🔁 Otomatik Strateji',eformul:'🔴 E Formülü SHORT',master:'💎 Güçlü Sinyal',degisim:'⚡ Değişim LONG'};
 
   // Özet güncelle
   $('perfTotal').textContent=summary.total||vp.length;
