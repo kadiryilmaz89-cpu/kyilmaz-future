@@ -695,7 +695,8 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
     <div id="earlyAlertBody" style="font-size:12px;color:var(--text2);text-align:center;line-height:1.6;margin-bottom:16px"></div>
     <div style="display:flex;gap:8px">
       <button id="earlyAlertInc" style="flex:1;padding:11px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:var(--green);color:#000">📊 İncele</button>
-      <button onclick="closeEarlyAlert()" style="flex:1;padding:11px;border-radius:9px;border:1px solid var(--border);font-size:13px;font-weight:700;cursor:pointer;background:var(--bg2);color:var(--text)">Kapat</button>
+      <button id="earlyAlertChart" style="flex:1;padding:11px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:rgba(0,212,161,.2);color:var(--green);border:1px solid var(--green)">📈 Grafik</button>
+      <button onclick="closeEarlyAlert()" style="flex:1;padding:11px;border-radius:9px;border:1px solid var(--border);font-size:13px;font-weight:700;cursor:pointer;background:var(--bg2);color:var(--text)">✕</button>
     </div>
   </div>
 </div>
@@ -2466,7 +2467,7 @@ function showPatlamaPop(fullSym){
       }).join('')}
     </div>
   `;
-  $('popActs').innerHTML=`<button class="pbtn pbtn-buy" onclick="closePop();showDetail('${fullSym}')">📊 Detaylı Analiz</button><button class="pbtn pbtn-w" onclick="closePop()">✕</button>`;
+  $('popActs').innerHTML=`<button class="pbtn pbtn-buy" onclick="closePop();showDetail('${fullSym}')">📊 Detaylı Analiz</button><button class="pbtn pbtn-w" onclick="showChart('${fullSym}')">📈 Grafik</button><button class="pbtn pbtn-w" onclick="closePop()">✕</button>`;
   $('popOv').classList.add('show');
 }
 
@@ -3129,7 +3130,7 @@ ${confirm}<br>
   window._popSym=sym;
   $('popTabs').innerHTML=['öneri','teknik','destek','güven','hedef'].map(t=>`<button class="ptab ${t==='öneri'?'active':''}" onclick="switchDet2('${sym}','${t}',this)">${t==='öneri'?'💡 Öneri':t==='teknik'?'📊 Teknik':t==='destek'?'💚 S/R':t==='güven'?'🎯 Skor':'🎯 TP/SL'}</button>`).join('');
   $('popContent').innerHTML=oneriBanner+domBanner+exitBanner;
-  $('popActs').innerHTML=`<button class="pbtn pbtn-buy" onclick="closePop()">▲ LONG</button><button class="pbtn pbtn-sell" onclick="closePop()">▼ SHORT</button><button class="pbtn pbtn-w" onclick="closePop()">✕ Kapat</button>`;
+  $('popActs').innerHTML=`<button class="pbtn pbtn-buy" onclick="closePop()">▲ LONG</button><button class="pbtn pbtn-sell" onclick="closePop()">▼ SHORT</button><button class="pbtn pbtn-w" onclick="showChart('${sym}')">📊 Grafik</button><button class="pbtn pbtn-w" onclick="closePop()">✕</button>`;
   $('popOv').classList.add('show');
 }
 function switchDet2(sym,tab,el){
@@ -3973,6 +3974,7 @@ function showEarlyAlert(sym, score, level, text){
   $('earlyAlertTitle').textContent='PATLAMA UYARISI: '+name+' — Skor '+score;
   $('earlyAlertBody').textContent=text+'\n\nFiyat hareket etmeden yakalandı. İncele ve karar ver.';
   $('earlyAlertInc').onclick=()=>{closeEarlyAlert();showDetail(sym);};
+  $('earlyAlertChart').onclick=()=>{closeEarlyAlert();showChart(sym);};
   const pop=$('earlyAlertPop');
   pop.style.display='flex';
 }
@@ -4637,6 +4639,10 @@ function showMasterSignalPop(idx=0){
     <!-- Risk uyarısı -->
     <div style="background:rgba(255,71,87,.1);border-radius:8px;padding:10px;font-size:10px;color:#999;line-height:1.5">
       ⚠️ Bu sinyal tüm kriterlerin uyuştuğunu gösterir ama kesin değildir. Stop loss kullan. Kasanın max %5'ini tek pozisyona yatır. Piyasa koşulları anlık değişebilir.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
+      <button onclick="showChart('${best.sym}')" style="background:rgba(0,212,161,.2);border:1px solid var(--green);color:var(--green);padding:10px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer">📊 Grafik Gör</button>
+      <button onclick="window.open('https://www.tradingview.com/chart/?symbol=BINANCE:${sym}USDT.P&interval=15','_blank')" style="background:rgba(168,85,247,.2);border:1px solid #a855f7;color:#a855f7;padding:10px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer">🔗 TV'de Aç</button>
     </div>
   `;
   $('masterSignalPop').style.display='flex';
@@ -5346,6 +5352,18 @@ async function updateMarketReport(force=false){
 // Her dakika saat kontrolü yap
 setInterval(()=>{ if(allFutures.length) updateMarketReport(); }, 60000);
 
+function showChart(sym){
+  const coin = sym.replace('USDT','');
+  const tvSym = 'BINANCE:'+coin+'USDT.P'; // Futures
+  const embedUrl = `https://www.tradingview.com/widgetembed/?symbol=${tvSym}&interval=15&theme=dark&style=1&locale=tr&toolbar_bg=%23131722&enable_publishing=0&hide_top_toolbar=0&studies=RSI%40tv-basicstudies,MASimple%40tv-basicstudies,Volume%40tv-basicstudies&withdateranges=1&hide_side_toolbar=0`;
+  const tvUrl = `https://www.tradingview.com/chart/?symbol=${tvSym}&interval=15`;
+
+  $('chartPopTitle').textContent = coin+'/USDT Grafik (15m)';
+  $('chartFrame').src = embedUrl;
+  $('chartTVBtn').onclick = ()=>window.open(tvUrl,'_blank');
+  $('chartPop').style.display = 'flex';
+}
+
 // ── BİLDİRİM SİSTEMİ ──
 let notifEnabled = localStorage.getItem('kfnotif') !== 'off';
 
@@ -5652,6 +5670,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     </div>
     <div id="newsDetailBody" style="padding:16px"></div>
   </div>
+</div>
+<!-- GRAFİK POPUP -->
+<div id="chartPop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:1000;flex-direction:column" onclick="if(event.target===this)$('chartPop').style.display='none'">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg1);border-bottom:1px solid var(--border)">
+    <div style="font-size:14px;font-weight:900" id="chartPopTitle">Grafik</div>
+    <div style="display:flex;gap:8px">
+      <button id="chartTVBtn" onclick="" style="background:rgba(0,212,161,.2);border:1px solid var(--green);color:var(--green);padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">🔗 TV'de Aç</button>
+      <button onclick="$('chartPop').style.display='none'" style="background:var(--bg2);border:1px solid var(--border);color:var(--text1);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px">✕</button>
+    </div>
+  </div>
+  <iframe id="chartFrame" src="" style="flex:1;border:none;width:100%;height:100%"></iframe>
 </div>
 
 </body>
