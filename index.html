@@ -5118,9 +5118,25 @@ async function fetchFearGreed(){
 
 // ── 4 SAATLİK PİYASA RAPORU ──
 let lastReportTime = 0;
+const REPORT_HOURS = [3,7,11,15,19,23];
+
+function isReportHour(){
+  const h = new Date().getHours();
+  return REPORT_HOURS.includes(h);
+}
+
+function nextReportTime(){
+  const now = new Date();
+  const h = now.getHours();
+  const next = REPORT_HOURS.find(x=>x>h) ?? REPORT_HOURS[0];
+  const diff = next>h ? next-h : 24-h+next;
+  return diff+'s sonra ('+next+':00)';
+}
+
 async function updateMarketReport(force=false){
   const now = Date.now();
-  if(!force && (now-lastReportTime) < 4*3600*1000) return; // 4 saatte bir
+  if(!force && !isReportHour()) return;
+  if(!force && (now-lastReportTime) < 3600*1000) return; // aynı saatte tekrar çalışmasın
   lastReportTime = now;
 
   const content = $('marketReportContent');
@@ -5148,12 +5164,15 @@ async function updateMarketReport(force=false){
     });
     const data = await resp.json();
     const rapor = data.choices?.[0]?.message?.content||'Rapor alınamadı.';
-    if(content) content.innerHTML = `<div style="white-space:pre-wrap;line-height:1.8">${rapor}</div>`;
+    if(content) content.innerHTML = `<div style="white-space:pre-wrap;line-height:1.8">${rapor}</div><div style="margin-top:8px;font-size:10px;color:var(--text2)">Sonraki güncelleme: ${nextReportTime()}</div>`;
     if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})+' güncellendi';
   } catch(e){
     if(content) content.innerHTML = '<span style="color:var(--text2)">Rapor alınamadı.</span>';
   }
 }
+
+// Her dakika saat kontrolü yap
+setInterval(()=>{ if(allFutures.length) updateMarketReport(); }, 60000);
 
 // ── BİLDİRİM SİSTEMİ ──
 let notifEnabled = localStorage.getItem('kfnotif') !== 'off';
