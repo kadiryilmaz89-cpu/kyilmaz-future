@@ -411,6 +411,33 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
   </div>
 </div>
 
+<!-- F&G + 4 SAATLİK GROQ RAPORU -->
+<div style="margin-bottom:12px">
+  <!-- F&G Göstergesi -->
+  <div id="fgBar" style="background:var(--bg1);border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border)">
+    <div style="font-size:11px;color:var(--text2)">😨 Korku & Açgözlülük</div>
+    <div id="fgValue" style="font-size:13px;font-weight:900">-- Yükleniyor...</div>
+    <div id="fgBar2" style="width:100px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+      <div id="fgFill" style="height:100%;width:0%;background:var(--green);border-radius:3px;transition:width .5s"></div>
+    </div>
+  </div>
+
+  <!-- 4 Saatlik Rapor Paneli -->
+  <div style="background:var(--bg1);border-radius:10px;border:1px solid rgba(168,85,247,.3)">
+    <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span>📊</span>
+        <span style="font-size:12px;font-weight:800">Piyasa Raporu</span>
+        <span id="reportTime" style="font-size:10px;color:var(--text2)">Yükleniyor...</span>
+      </div>
+      <button onclick="updateMarketReport(true)" style="background:rgba(168,85,247,.2);border:none;color:#a855f7;padding:4px 8px;border-radius:6px;font-size:10px;cursor:pointer;font-weight:700">🔄 Güncelle</button>
+    </div>
+    <div id="marketReportContent" style="padding:12px;font-size:12px;color:var(--text2);line-height:1.7">
+      Tara butonuna bas, rapor hazırlanacak...
+    </div>
+  </div>
+</div>
+
 <!-- COIN ANALİZ — BTC'nin hemen altında -->
 <div class="section">
   <div class="section-title">🔎 Coin Analizi <small>— Tam teknik analiz şablonu</small></div>
@@ -1207,6 +1234,8 @@ async function startScan(silent=false){
     renderFutList();
     renderMktData();
     renderWhales();
+    fetchFearGreed();
+    updateMarketReport();
     renderLiqMap();
     renderCorrelation();
     renderTrend();
@@ -3432,7 +3461,7 @@ function openVirtualPosition(f, score, dir, source){
   if(!price)return;
   // ATR bazlı TP/SL
   const atr=f.atr||price*.015;
-  const slDist=atr*2;
+  const slDist=atr*1.5;
   const sl=dir==='LONG'?price-slDist:price+slDist;
   const tp1=dir==='LONG'?price+slDist*2:price-slDist*2;  // 1:2 R
   const tp2=dir==='LONG'?price+slDist*3:price-slDist*3;  // 1:3 R
@@ -3455,7 +3484,7 @@ function openVirtualPosition(f, score, dir, source){
 function checkVirtualPositions(){
   if(!allFutures.length)return;
   let changed=false;
-  ['patlama','futures','strateji'].forEach(src=>{
+  ['patlama','futures','strateji','eformul','master'].forEach(src=>{
     const vp=getVP(src);
     vp.forEach(p=>{
       if(p.status!=='open')return;
@@ -4289,29 +4318,13 @@ function renderMasterSignal() {
   results.slice(0,3).forEach(best=>{
     const exists = vpMaster.find(p=>p.sym===best.sym&&p.status==='open');
     if(!exists){
-      const price = best.price;
-      const atr = best.atr || price*0.02;
       vpMaster.push({
         sym: best.sym, dir: best.isLong?'LONG':'SHORT',
-        entryPrice: price, entryTime: Date.now(),
+        entryPrice: best.price, entryTime: Date.now(),
         sl: best.sl, tp1: best.tp1, tp2: best.tp2,
         score: best.masterScore, lev: VP_LEV, size: VP_SIZE,
         status: 'open', reasons: best.reasons, confirm: best.confirm
       });
-    }
-  });
-  // Sinyal değişince master pozları kaldır
-  const masterSymsNow = results.slice(0,3).map(r=>r.sym);
-  vpMaster.forEach(p=>{
-    if(p.status==='open' && !masterSymsNow.includes(p.sym)){
-      const f = allFutures.find(x=>x.sym===p.sym);
-      const cur = parseFloat(f?.lastPrice||f?.price)||p.entryPrice;
-      const pct = p.dir==='LONG'?(cur-p.entryPrice)/p.entryPrice*100:(p.entryPrice-cur)/p.entryPrice*100;
-      p.closePrice = cur;
-      p.closePct = pct;
-      p.closePnl = VP_SIZE*VP_LEV*pct/100;
-      p.status = pct>=0?'win':'loss';
-      updateKasaFromClose('master', p.closePnl);
     }
   });
   saveVP('master');
@@ -5085,6 +5098,61 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/kyilmaz-future/sw.js')
     .then(reg => console.log('[SW] Kayıt OK:', reg.scope))
     .catch(err => console.log('[SW] Hata:', err));
+}
+
+// ── KORKU & AÇGÖZLÜLÜK ──
+async function fetchFearGreed(){
+  try{
+    const r = await fetch('https://api.alternative.me/fng/?limit=1', {signal:AbortSignal.timeout(5000)});
+    const d = await r.json();
+    const val = parseInt(d?.data?.[0]?.value||50);
+    const label = d?.data?.[0]?.value_classification||'';
+    const labelTR = val<=25?'Aşırı Korku':val<=45?'Korku':val<=55?'Nötr':val<=75?'Açgözlülük':'Aşırı Açgözlülük';
+    const col = val<=25?'#ff4757':val<=45?'#ffa502':val<=55?'var(--text2)':val<=75?'#2ed573':'#00d4a1';
+    const fg = $('fgValue');
+    const fill = $('fgFill');
+    if(fg) fg.innerHTML = `<span style="color:${col};font-weight:900">${val}</span> <span style="font-size:11px;color:${col}">${labelTR}</span>`;
+    if(fill){ fill.style.width=val+'%'; fill.style.background=col; }
+  } catch(e){}
+}
+
+// ── 4 SAATLİK PİYASA RAPORU ──
+let lastReportTime = 0;
+async function updateMarketReport(force=false){
+  const now = Date.now();
+  if(!force && (now-lastReportTime) < 4*3600*1000) return; // 4 saatte bir
+  lastReportTime = now;
+
+  const content = $('marketReportContent');
+  const timeEl = $('reportTime');
+  if(content) content.innerHTML = '<span style="color:var(--text2)">🤖 Groq rapor hazırlıyor...</span>';
+
+  try{
+    const btc = allFutures.find(f=>f.sym==='BTCUSDT');
+    const longlar = (window._masterResults||[]).filter(r=>r.isLong).slice(0,3).map(r=>r.sym.replace('USDT','')).join(', ')||'Yok';
+    const shortlar = (window._masterResults||[]).filter(r=>!r.isLong).slice(0,3).map(r=>r.sym.replace('USDT','')).join(', ')||'Yok';
+    const patlama = (window.patlamaCache||[]).slice(0,3).map(r=>r.sym?.replace('USDT','')||r.s?.replace('USDT','')).join(', ')||'Yok';
+    const btcBilgi = btc?`BTC: $${btc.price} (${btc.ch>=0?'+':''}${btc.ch}%)`:'BTC verisi yok';
+
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
+      body: JSON.stringify({
+        model:'llama-3.3-70b-versatile',
+        max_tokens:400,
+        messages:[
+          {role:'system', content:'Sen kripto piyasası uzmanısın. Kısa, net, Türkçe yaz. Madde madde özet yap.'},
+          {role:'user', content:`Şu an piyasa durumu:\n${btcBilgi}\nLONG adayları: ${longlar}\nSHORT adayları: ${shortlar}\nPatlama listesi: ${patlama}\n\nBana 4 maddelik kısa piyasa raporu yaz:\n1. BTC durumu ve yönü\n2. En iyi fırsat\n3. Risk faktörü\n4. Genel öneri\n\nHer madde 1 cümle, emoji kullan.`}
+        ]
+      })
+    });
+    const data = await resp.json();
+    const rapor = data.choices?.[0]?.message?.content||'Rapor alınamadı.';
+    if(content) content.innerHTML = `<div style="white-space:pre-wrap;line-height:1.8">${rapor}</div>`;
+    if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})+' güncellendi';
+  } catch(e){
+    if(content) content.innerHTML = '<span style="color:var(--text2)">Rapor alınamadı.</span>';
+  }
 }
 
 // ── BİLDİRİM SİSTEMİ ──
