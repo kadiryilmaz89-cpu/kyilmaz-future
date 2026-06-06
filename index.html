@@ -5647,7 +5647,7 @@ function showChart(sym){
 }
 
 // ── GITHUB GIST SENKRON ──
-const GIST_TOKEN = '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';
+const GIST_TOKEN = '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';
 const GIST_ID = '04e7b66af76f2510c3956ec7173a9b8a';
 let _gistSaving = false;
 
@@ -5698,7 +5698,11 @@ async function loadFromGist(){
     if(d.kasaDegisim) kasaDegisim = d.kasaDegisim;
 
     // Flash geçmişi
-    if(d.flashHistory?.length) flashHistory = d.flashHistory;
+    if(d.flashHistory?.length){
+      flashHistory = d.flashHistory;
+      renderFlashHistory();
+      renderLongOpportunities();
+    }
 
     console.log('Gist yüklendi:', new Date(d.updatedAt).toLocaleTimeString('tr-TR'));
   }catch(e){}
