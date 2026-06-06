@@ -1805,6 +1805,11 @@ function calcLongScore(f, flashEntry){
     if(hepKirmizi) score = Math.floor(score*0.5);
   }
 
+  // 24h büyük düşüş varsa puan kes
+  const ch24 = parseFloat(f.ch||f.priceChangePercent||0);
+  if(ch24 < -10) score = Math.floor(score*0.3); // -10% altı → %30'a düşür
+  else if(ch24 < -5) score = Math.floor(score*0.6); // -5% altı → %60'a düşür
+
   return Math.min(score, 100);
 }
 
@@ -1838,10 +1843,11 @@ function renderLongOpportunities(){
     const fr=fundingData.find(x=>x.sym===f.sym);
     if(fr?.rate<0) kriterler.push('Fund '+fr.rate?.toFixed(3)+'%');
 
-    // Önceki mum kapanışından yüksek mi? (zorunlu koşul)
+    // Önceki mum kapanışından VE ilk sinyal fiyatından yüksek mi? (zorunlu koşul)
     const sigPrice = f.signalPrice||f.price||0;
+    const firstPrice = f.firstPrice||f.price||0;
     const curPrice = parseFloat(futCoin.price)||f.price||0;
-    const abovePrevClose = sigPrice>0 && curPrice>sigPrice;
+    const abovePrevClose = sigPrice>0 && firstPrice>0 && curPrice>sigPrice && curPrice>firstPrice;
 
     // 5dk trendi (bonus)
     const prices5m = (window._price5m||{})[f.sym]||[];
@@ -1866,7 +1872,7 @@ function renderLongOpportunities(){
     }
 
     return { ...f, score, futCoin, kriterler, abovePrevClose };
-  }).filter(Boolean).filter(c=>c.abovePrevClose).sort((a,b)=>b.score-a.score).slice(0,10);
+  }).filter(Boolean).filter(c=>c.abovePrevClose && !(c.futCoin.rsi && c.futCoin.rsi>60)).sort((a,b)=>b.score-a.score).slice(0,10);
 
   if(!longCands.length){
     grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Değişim izleniyor...</div>';
