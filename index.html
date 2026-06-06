@@ -1763,7 +1763,10 @@ function renderLongOpportunities(){
   const timeEl = $('longOppTime');
   if(!grid) return;
 
-  const longCands = flashData.filter(f=>f.up).map(f=>{
+  // flashHistory'den yükselen coinleri al (silinmeden kalır)
+  const source = flashHistory.filter(f=>f.up);
+
+  const longCands = source.map(f=>{
     const futCoin = allFutures.find(x=>x.sym===f.sym);
     if(!futCoin) return null;
     const score = calcLongScore(futCoin, f);
@@ -1791,23 +1794,14 @@ function renderLongOpportunities(){
       const last = parseInt(localStorage.getItem(alertKey)||'0');
       if(Date.now()-last > 1800000){
         localStorage.setItem(alertKey, String(Date.now()));
-        const futC = allFutures.find(x=>x.sym===f.sym);
-        if(futC){
-          showLongOppPopup(f.sym, score, futC, kriterler);
-          sendNotif('🚀 LONG FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'long80-'+f.sym);
-          // Sanal poz aç
-          const exists = vpDegisim.find(p=>p.sym===f.sym&&p.status==='open');
-          if(!exists){
-            const pr = parseFloat(futC.price)||0;
-            const atr = futC.atr||pr*0.015;
-            vpDegisim.push({
-              sym:f.sym, dir:'LONG', entryPrice:pr, entryTime:Date.now(),
-              sl:pr-atr*1.5, tp1:pr+atr*2, tp2:pr+atr*3,
-              score, lev:VP_LEV, size:VP_SIZE, status:'open',
-              reasons:kriterler, source:'degisim'
-            });
-            saveVP('degisim');
-          }
+        showLongOppPopup(f.sym, score, futCoin, kriterler);
+        sendNotif('🚀 LONG FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'long80-'+f.sym);
+        const exists = vpDegisim.find(p=>p.sym===f.sym&&p.status==='open');
+        if(!exists){
+          const pr = parseFloat(futCoin.price)||0;
+          const atr = futCoin.atr||pr*0.015;
+          vpDegisim.push({sym:f.sym,dir:'LONG',entryPrice:pr,entryTime:Date.now(),sl:pr-atr*1.5,tp1:pr+atr*2,tp2:pr+atr*3,score,lev:VP_LEV,size:VP_SIZE,status:'open',reasons:kriterler,source:'degisim'});
+          saveVP('degisim');
         }
       }
     }
