@@ -1269,7 +1269,7 @@ async function startScan(silent=false){
     renderMktData();
     renderWhales();
     fetchFearGreed();
-    updateMarketReport();
+    if(!scanned) updateMarketReport(true); else updateMarketReport();
     renderLiqMap();
     renderCorrelation();
     renderTrend();
@@ -5632,7 +5632,10 @@ async function updateMarketReport(force=false){
 // Her dakika saat kontrolü yap
 setInterval(()=>{ if(allFutures.length) updateMarketReport(); }, 60000);
 // Sayfa açılınca hemen hazırla
-document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(()=>updateMarketReport(true), 3000); });
+document.addEventListener('DOMContentLoaded', ()=>{ 
+  setTimeout(()=>updateMarketReport(true), 3000);
+  setTimeout(()=>{ setTimeout(flashPoll, 2000); }, 1000);
+});
 
 function showChart(sym){
   const coin = sym.replace('USDT','');
