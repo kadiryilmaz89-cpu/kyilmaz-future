@@ -3574,6 +3574,8 @@ function startWebSocket(){
           }
           flashHistory=flashHistory.slice(0,20);
           saveToGist();
+          // Yeni sinyal için kline verisi hemen çek
+          fetchKlinesForHistory();
 
           updateFlash();
           if(Math.abs(ch)>=1){
@@ -3649,6 +3651,7 @@ async function flashPoll(){
           }
           flashHistory = flashHistory.slice(0,20);
           saveToGist();
+          fetchKlinesForHistory();
           if(Math.abs(ch)>=1) { try{ showTicker('⚡ FLASH: '+sym.replace('USDT','')+(ch>0?' 📈':' 📉')+(ch>=0?' +':' ')+ch.toFixed(2)+'%'); }catch(e){} }
         }
       }
@@ -3682,45 +3685,58 @@ async function flashPoll(){
     const timeEl = document.getElementById('flashTime');
     if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 
-    // Her 10 poll'da bir (5dk) flashHistory coinleri için 1h ve 15m kline çek
+    // Her 10 poll'da bir (5dk) kline güncelle
     if(!window._kline1hPollCount) window._kline1hPollCount = 0;
     window._kline1hPollCount++;
-    if(window._kline1hPollCount % 10 === 1){
-      const syms = [...new Set(flashHistory.map(f=>f.sym))].slice(0,20);
-      syms.forEach(async sym=>{
-        try{
-          // 1h kline
-          const r1h = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=2`);
-          const d1h = await r1h.json();
-          if(d1h && d1h.length>=1){
-            if(!window._kline1hClose) window._kline1hClose={};
-            if(!window._kline1hLow) window._kline1hLow={};
-            window._kline1hClose[sym] = parseFloat(d1h[d1h.length-2]?.[4]||d1h[d1h.length-1][4]);
-            window._kline1hLow[sym] = parseFloat(d1h[d1h.length-1][3]);
-          }
-          // 15m kline — önceki mumun low ve close'u için
-          const r15 = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=15m&limit=3`);
-          const d15 = await r15.json();
-          if(d15 && d15.length>=2){
-            if(!window._kline15m) window._kline15m={};
-            window._kline15m[sym] = {
-              prevClose: parseFloat(d15[d15.length-2][4]),
-              prevLow: parseFloat(d15[d15.length-2][3]),
-              prevHigh: parseFloat(d15[d15.length-2][2]),
-              curClose: parseFloat(d15[d15.length-1][4]),
-              curOpen: parseFloat(d15[d15.length-1][1])
-            };
-          }
-        }catch(e){}
-      });
-    }
+    if(window._kline1hPollCount % 10 === 1) fetchKlinesForHistory();
 
   } catch(e){}
 }
 // Her 30 saniyede bir çalıştır
 setInterval(flashPoll, 30000);
 // Sayfa yüklendikten sonra başlat
-document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(flashPoll, 2000); });
+document.addEventListener('DOMContentLoaded', ()=>{
+  setTimeout(async ()=>{
+    // Önce kline verilerini çek
+    await fetchKlinesForHistory();
+    // Sonra flashPoll başlat
+    flashPoll();
+  }, 1000);
+});
+
+async function fetchKlinesForHistory(){
+  const syms = [...new Set(flashHistory.map(f=>f.sym))].slice(0,20);
+  if(!syms.length) return;
+  await Promise.all(syms.map(async sym=>{
+    try{
+      const [r1h, r15] = await Promise.all([
+        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=2`),
+        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=15m&limit=3`)
+      ]);
+      const d1h = await r1h.json();
+      const d15 = await r15.json();
+      if(d1h?.length>=1){
+        if(!window._kline1hClose) window._kline1hClose={};
+        if(!window._kline1hLow) window._kline1hLow={};
+        window._kline1hClose[sym] = parseFloat(d1h[d1h.length-2]?.[4]||d1h[d1h.length-1][4]);
+        window._kline1hLow[sym] = parseFloat(d1h[d1h.length-1][3]);
+      }
+      if(d15?.length>=2){
+        if(!window._kline15m) window._kline15m={};
+        window._kline15m[sym] = {
+          prevClose: parseFloat(d15[d15.length-2][4]),
+          prevLow: parseFloat(d15[d15.length-2][3]),
+          prevHigh: parseFloat(d15[d15.length-2][2]),
+          curClose: parseFloat(d15[d15.length-1][4]),
+          curOpen: parseFloat(d15[d15.length-1][1])
+        };
+      }
+    }catch(e){}
+  }));
+  // Veriler geldi, paneli güncelle
+  renderLongOpportunities();
+  renderFlashHistory();
+}
 
 function updateFlash(){
   const now = Date.now();
