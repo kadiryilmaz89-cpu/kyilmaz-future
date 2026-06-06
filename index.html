@@ -714,6 +714,14 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
 </div>
 
 <script>
+function showTicker(msg){
+  const t=document.getElementById('ticker');
+  if(!t) return;
+  t.classList.add('show');
+  document.getElementById('tickerInner').innerHTML='<span style="font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:6px"><span class="tdot"></span>'+msg+'</span>'.repeat(4);
+  clearTimeout(window._tTO);
+  window._tTO=setTimeout(()=>t.classList.remove('show'),30000);
+}
 const GROQ_KEY = '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';
 const $=id=>document.getElementById(id);
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
@@ -3650,14 +3658,6 @@ function renderFlashHistory(){
   el.innerHTML = html || '<div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>';
 }
 
-function showTicker(msg){
-  const t=$('ticker');
-  if(!t) return;
-  t.classList.add('show');
-  $('tickerInner').innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:6px"><span class="tdot"></span>${msg}</span>`.repeat(4);
-  clearTimeout(window._tTO);
-  window._tTO=setTimeout(()=>t.classList.remove('show'),30000);
-}
 
 // İlişkili coin hareket ettiğinde tepede kalıcı uyarı kartı göster
 function showRelatedAlert(coin, ch, trigger, corr){
