@@ -1763,8 +1763,8 @@ function renderLongOpportunities(){
   const timeEl = $('longOppTime');
   if(!grid) return;
 
-  // flashHistory'den yükselen coinleri al (silinmeden kalır)
-  const source = flashHistory.filter(f=>f.up);
+  // flashHistory'den tüm değişimleri al — hem yükselen hem düşen
+  const source = flashHistory;
 
   const longCands = source.map(f=>{
     const futCoin = allFutures.find(x=>x.sym===f.sym);
@@ -3582,18 +3582,19 @@ function updateFlash(){
     const curFut = allFutures.find(x=>x.sym===f.sym);
     const curPrice = parseFloat(curFut?.price||f.price)||0;
     const elapsed = now - (f.signalTime||now);
-    if(elapsed > 300000) return false; // 5dk geçti
-    if(f.up && curPrice < (f.signalPrice||f.price)) return false; // sinyal fiyatının altına düştü
+    if(elapsed > 300000) return false;
+    if(f.up && curPrice < (f.signalPrice||f.price)) return false;
     return true;
   });
 
-  if(!flashData.length){
-    $('flashGrid').innerHTML='<div class="empty" style="grid-column:1/-1">%0.5+ değişim izleniyor...</div>';
+  // Üst panel — flashHistory'den tüm değişimler
+  if(!flashHistory.length){
+    $('flashGrid').innerHTML='<div class="empty" style="grid-column:1/-1">%1+ değişim izleniyor...</div>';
   } else {
-    $('flashGrid').innerHTML=flashData.map(f=>`<div class="flash-card ${f.up?'up':'down'}" onclick="showDetail('${f.sym}')"><div style="font-size:12px;font-weight:800;margin-bottom:2px">${f.sym.replace('USDT','')}</div><div style="font-size:15px;font-weight:800;color:${f.up?'var(--green)':'var(--red)'}">${f.up?'+':''}${f.chPct}%</div><div style="font-size:10px;color:var(--text2)">$${fmt(f.price,f.price>100?2:6)}</div><div style="font-size:9px;color:var(--text2);margin-top:2px">${f.time}</div></div>`).join('');
+    $('flashGrid').innerHTML=flashHistory.slice(0,15).map(f=>`<div class="flash-card ${f.up?'up':'down'}" onclick="showDetail('${f.sym}')"><div style="font-size:12px;font-weight:800;margin-bottom:2px">${f.sym.replace('USDT','')}</div><div style="font-size:15px;font-weight:800;color:${f.up?'var(--green)':'var(--red)'}">${f.up?'+':''}${f.chPct}%</div><div style="font-size:10px;color:var(--text2)">$${fmt(f.price,f.price>100?2:6)}</div><div style="font-size:9px;color:var(--text2);margin-top:2px">${f.time}</div></div>`).join('');
   }
 
-  // Alt geçmiş paneli
+  // Alt ve orta paneli güncelle
   renderFlashHistory();
   renderLongOpportunities();
 }
@@ -3614,7 +3615,10 @@ function renderFlashHistory(){
     return {f, pct, isAbove, ago, sigTime};
   });
 
-  el.innerHTML = items.map(x=>{
+  const yukselenler = items.filter(x=>x.isAbove);
+  const dusenler = items.filter(x=>!x.isAbove);
+
+  const renderItem = (x)=>{
     const bg = x.isAbove?'rgba(0,212,161,.08)':'rgba(255,71,87,.08)';
     const border = x.isAbove?'var(--green)':'var(--red)';
     const pctCol = x.isAbove?'var(--green)':'var(--red)';
@@ -3631,9 +3635,20 @@ function renderFlashHistory(){
       </div>
       <div style="font-size:9px;color:var(--text2);text-align:right">${x.sigTime}<br>${x.ago}dk önce</div>
     </div>`;
-  }).join('');
+  };
+
+  let html = '';
+  if(yukselenler.length){
+    html += `<div style="font-size:10px;font-weight:800;color:var(--green);margin:4px 0">📈 Sinyal Fiyatının Üstünde (${yukselenler.length})</div>`;
+    html += yukselenler.map(renderItem).join('');
+  }
+  if(dusenler.length){
+    html += `<div style="font-size:10px;font-weight:800;color:var(--red);margin:8px 0 4px">📉 Sinyal Fiyatının Altında (${dusenler.length})</div>`;
+    html += dusenler.map(renderItem).join('');
+  }
+  el.innerHTML = html || '<div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>';
+  el.innerHTML = html || '<div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>';
 }
-function showTicker(msg){$('ticker').classList.add('show');$('tickerInner').innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:6px"><span class="tdot"></span>${msg}</span>`.repeat(4);clearTimeout(window._tTO);window._tTO=setTimeout(()=>$('ticker').classList.remove('show'),30000);}
 
 // İlişkili coin hareket ettiğinde tepede kalıcı uyarı kartı göster
 function showRelatedAlert(coin, ch, trigger, corr){
