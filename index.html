@@ -3650,6 +3650,15 @@ function renderFlashHistory(){
   el.innerHTML = html || '<div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>';
 }
 
+function showTicker(msg){
+  const t=$('ticker');
+  if(!t) return;
+  t.classList.add('show');
+  $('tickerInner').innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:6px"><span class="tdot"></span>${msg}</span>`.repeat(4);
+  clearTimeout(window._tTO);
+  window._tTO=setTimeout(()=>t.classList.remove('show'),30000);
+}
+
 // İlişkili coin hareket ettiğinde tepede kalıcı uyarı kartı göster
 function showRelatedAlert(coin, ch, trigger, corr){
   let box=$('relatedAlertBox'); if(!box) return;
