@@ -3487,8 +3487,8 @@ function startWebSocket(){
           }
           flashHistory=flashHistory.slice(0,20);
           saveToGist();
-          // Yeni sinyal için kline verisi hemen çek
-          fetchKlinesForHistory();
+          // Yeni sinyal için kline verisi hemen çek, sonra render et
+          fetchKlinesForHistory().then(()=>{ updateFlash(); });
 
           updateFlash();
           if(Math.abs(ch)>=1){
@@ -3564,8 +3564,8 @@ async function flashPoll(){
           }
           flashHistory = flashHistory.slice(0,20);
           saveToGist();
-          fetchKlinesForHistory();
-          if(Math.abs(ch)>=1) { try{ showTicker('⚡ FLASH: '+sym.replace('USDT','')+(ch>0?' 📈':' 📉')+(ch>=0?' +':' ')+ch.toFixed(2)+'%'); }catch(e){} }
+          saveToGist();
+          fetchKlinesForHistory().then(()=>{ updateFlash(); });
         }
       }
 
