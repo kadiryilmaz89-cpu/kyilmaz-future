@@ -1853,10 +1853,11 @@ function renderLongOpportunities(){
     const abovePrevLow = prevLow>0 ? curPrice>prevLow : curPrice>sigPrice;
 
     // 1 saat önceki fiyat — _price5m'de en eski kayıt (~10 poll = 5dk, 1sa için ayrı saklayalım)
-    const prices1h = (window._price1h||{})[f.sym]||[];
-    const price1hAgo = prices1h.length>0 ? prices1h[0] : 0;
+    // 1 saat önceki fiyat — önce _kline1hClose, yoksa klinesMap1h
+    const kline1hClose = (window._kline1hClose||{})[f.sym];
+    const kl1hc = klinesMap1h[f.sym];
+    const price1hAgo = kline1hClose || ((kl1hc && kl1hc.length>=2) ? kl1hc[kl1hc.length-2].c : 0);
     const abovePrice1h = price1hAgo>0 ? curPrice>price1hAgo : true;
-
     const abovePrevClose = abovePrevLow && abovePrice1h;
 
     // 5dk trendi (bonus)
@@ -3668,6 +3669,23 @@ async function flashPoll(){
     updateFlash();
     const timeEl = document.getElementById('flashTime');
     if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+    // Her 10 poll'da bir (5dk) flashHistory coinleri için 1h kline çek
+    if(!window._kline1hPollCount) window._kline1hPollCount = 0;
+    window._kline1hPollCount++;
+    if(window._kline1hPollCount % 10 === 1){
+      const syms = [...new Set(flashHistory.map(f=>f.sym))].slice(0,20);
+      syms.forEach(async sym=>{
+        try{
+          const r = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=2`);
+          const d = await r.json();
+          if(d && d.length>=2){
+            if(!window._kline1hClose) window._kline1hClose={};
+            window._kline1hClose[sym] = parseFloat(d[d.length-2][4]); // önceki saatin kapanışı
+          }
+        }catch(e){}
+      });
+    }
 
   } catch(e){}
 }
