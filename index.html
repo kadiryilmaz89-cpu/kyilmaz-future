@@ -3546,7 +3546,7 @@ async function flashPoll(){
           if(hEx>=0) flashHistory.splice(hEx,1);
           flashHistory.unshift(Object.assign({},entry));
           flashHistory = flashHistory.slice(0,20);
-          if(Math.abs(ch)>=1) showTicker('⚡ FLASH: '+sym.replace('USDT','')+(ch>0?' 📈':' 📉')+(ch>=0?' +':' ')+ch.toFixed(2)+'%');
+          if(Math.abs(ch)>=1) { try{ showTicker('⚡ FLASH: '+sym.replace('USDT','')+(ch>0?' 📈':' 📉')+(ch>=0?' +':' ')+ch.toFixed(2)+'%'); }catch(e){} }
         }
       }
 
@@ -3571,8 +3571,8 @@ async function flashPoll(){
 }
 // Her 30 saniyede bir çalıştır
 setInterval(flashPoll, 30000);
-// İlk çalıştırma — başlangıç fiyatlarını kaydet
-flashPoll();
+// Sayfa yüklendikten sonra başlat
+document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(flashPoll, 2000); });
 
 function updateFlash(){
   const now = Date.now();
