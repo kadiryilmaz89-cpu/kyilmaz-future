@@ -1787,11 +1787,11 @@ function calcLongScore(f, flashEntry){
 
   // 7. İlk sinyal önceki mumun üstündeyse bonus (20 puan)
   const histEntry = flashHistory.find(x=>x.sym===sym);
-  let abovePrevClose = false;
+  let aboveSigPrice = false;
   if(histEntry){
-    const sigPrice = histEntry.signalPrice||histEntry.price||0;
-    if(sigPrice>0 && curPrice>sigPrice){
-      abovePrevClose = true;
+    const sigPriceH = histEntry.signalPrice||histEntry.price||0;
+    if(sigPriceH>0 && curPrice>sigPriceH){
+      aboveSigPrice = true;
       score += 20;
     }
   }
@@ -1849,7 +1849,7 @@ function renderLongOpportunities(){
     const sigPrice = f.signalPrice||f.price||0; // önceki mum kapanışı
     const curPrice = parseFloat(futCoin.price)||f.price||0;
 
-    // Önceki mumun dibinin üstünde mi? — _kline15m önce, yoksa klinesMap15m
+    // Önceki mumun dibinin üstünde mi?
     const kline15m = (window._kline15m||{})[f.sym];
     const kl15c = klinesMap15m[f.sym];
     const prevLow = kline15m?.prevLow || ((kl15c&&kl15c.length>=2) ? kl15c[kl15c.length-2].l : 0);
