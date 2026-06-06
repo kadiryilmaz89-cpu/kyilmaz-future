@@ -1743,11 +1743,16 @@ function calcLongScore(f, flashEntry){
     else if(volRatio >= 1.15) score += 12;
   }
 
-  // 3. Son 3 mum 15m yeşil (15 puan)
+  // 3. Son 3 mum 15m yeşil + güçlü kırılım (15+20 puan)
   const kl15 = klinesMap15m[sym];
-  if(kl15 && kl15.length>=3){
+  if(kl15 && kl15.length>=2){
+    const sonMum = kl15[kl15.length-1];
+    const oncekiMum = kl15[kl15.length-2];
     const yesil = kl15.slice(-3).filter(k=>k.c>k.o).length;
-    if(yesil===3) score += 15;
+    // Güçlü kırılım: şu an yeşil + önceki mumun üstünde + hacim arttı
+    const gucluKirilim = sonMum.c>sonMum.o && curPrice>oncekiMum.c && sonMum.v>oncekiMum.v;
+    if(gucluKirilim) score += 20;
+    else if(yesil===3) score += 15;
     else if(yesil===2) score += 7;
   }
 
@@ -1787,6 +1792,14 @@ function calcLongScore(f, flashEntry){
 
   // Düşen coin ise max 15 puanla sınırla
   if(!isUp) score = Math.min(score, 15);
+
+  // 4h trend aşağıysa puan yüzde 50 kes
+  const kl4h = f.klines4h;
+  if(kl4h && kl4h.length>=3){
+    const son3 = kl4h.slice(-3);
+    const hepKirmizi = son3.every(k=>k.c<k.o);
+    if(hepKirmizi) score = Math.floor(score*0.5);
+  }
 
   return Math.min(score, 100);
 }
@@ -3497,7 +3510,9 @@ function startWebSocket(){
         if(Math.abs(ch)>=0.5){ // 10 saniyede %0.5+
           const f=allFutures.find(x=>x.sym===sym);
           const ex=flashData.findIndex(x=>x.sym===sym);
-          const entry={sym,price,signalPrice:price,signalTime:Date.now(),chPct:ch?.toFixed(2),up:ch>0,time:new Date().toLocaleTimeString('tr-TR'),sig:f?.sig||'BEKLE',conf:f?.confidence||0};
+          const kl15ws=klinesMap15m&&klinesMap15m[sym];
+          const prevCloseWS=(kl15ws&&kl15ws.length>=2)?kl15ws[kl15ws.length-2].c:prev10;
+          const entry={sym,price,signalPrice:prevCloseWS,signalTime:Date.now(),chPct:ch?.toFixed(2),up:ch>0,time:new Date().toLocaleTimeString('tr-TR'),sig:f?.sig||'BEKLE',conf:f?.confidence||0};
           if(ex>=0){
             // Yeniden sinyal — öne al
             flashData.splice(ex,1);
@@ -3507,10 +3522,16 @@ function startWebSocket(){
           }
           flashData=flashData.slice(0,15);
 
-          // Geçmiş listesine ekle — yeniden sinyal alanlar öne geçer
+          // Geçmiş listesine ekle — ilk sinyal fiyatını koru
           const hEx = flashHistory.findIndex(x=>x.sym===sym);
-          if(hEx>=0) flashHistory.splice(hEx,1);
-          flashHistory.unshift({...entry});
+          if(hEx>=0){
+            // Zaten listede — sadece öne al, signalPrice değişmesin
+            const existing = flashHistory.splice(hEx,1)[0];
+            flashHistory.unshift({...entry, signalPrice: existing.signalPrice, signalTime: existing.signalTime});
+          } else {
+            // İlk kez — referans fiyatı sakla
+            flashHistory.unshift({...entry});
+          }
           flashHistory=flashHistory.slice(0,20);
 
           updateFlash();
@@ -3571,13 +3592,21 @@ async function flashPoll(){
         const ch = ((price - prev) / prev) * 100;
         if(Math.abs(ch) >= 1){
           const f = allFutures.find(x=>x.sym===sym);
-          const entry = {sym, price, signalPrice:price, signalTime:Date.now(), chPct:ch.toFixed(2), up:ch>0, time:new Date().toLocaleTimeString('tr-TR'), sig:(f&&f.sig)||'BEKLE', conf:(f&&f.confidence)||0};
+          // Sinyal referans fiyatı: önceki mumun kapanışı (15m)
+          const kl15 = klinesMap15m&&klinesMap15m[sym];
+          const prevClose = (kl15&&kl15.length>=2) ? kl15[kl15.length-2].c : prev;
+          const entry = {sym, price, signalPrice:prevClose, signalTime:Date.now(), chPct:ch.toFixed(2), up:ch>0, time:new Date().toLocaleTimeString('tr-TR'), sig:(f&&f.sig)||'BEKLE', conf:(f&&f.confidence)||0};
           const ex = flashData.findIndex(x=>x.sym===sym);
           if(ex>=0){ flashData.splice(ex,1); flashData.unshift(entry); } else { flashData.unshift(entry); }
           flashData = flashData.slice(0,15);
           const hEx = flashHistory.findIndex(x=>x.sym===sym);
-          if(hEx>=0) flashHistory.splice(hEx,1);
-          flashHistory.unshift(Object.assign({},entry));
+          if(hEx>=0){
+            // Listede var — ilk signalPrice ve signalTime koru, sadece öne al
+            const existing = flashHistory.splice(hEx,1)[0];
+            flashHistory.unshift(Object.assign({},entry,{signalPrice:existing.signalPrice, signalTime:existing.signalTime}));
+          } else {
+            flashHistory.unshift(Object.assign({},entry));
+          }
           flashHistory = flashHistory.slice(0,20);
           if(Math.abs(ch)>=1) { try{ showTicker('⚡ FLASH: '+sym.replace('USDT','')+(ch>0?' 📈':' 📉')+(ch>=0?' +':' ')+ch.toFixed(2)+'%'); }catch(e){} }
         }
