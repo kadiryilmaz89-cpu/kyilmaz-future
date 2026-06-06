@@ -1843,11 +1843,11 @@ function renderLongOpportunities(){
     const fr=fundingData.find(x=>x.sym===f.sym);
     if(fr?.rate<0) kriterler.push('Fund '+fr.rate?.toFixed(3)+'%');
 
-    // Önceki mum kapanışından VE ilk sinyal fiyatından yüksek mi? (zorunlu koşul)
+    // Önceki mum kapanışından yüksek mi? (zorunlu koşul)
     const sigPrice = f.signalPrice||f.price||0;
     const firstPrice = f.firstPrice||f.price||0;
     const curPrice = parseFloat(futCoin.price)||f.price||0;
-    const abovePrevClose = sigPrice>0 && firstPrice>0 && curPrice>sigPrice && curPrice>firstPrice;
+    const abovePrevClose = sigPrice>0 && curPrice>sigPrice;
 
     // 5dk trendi (bonus)
     const prices5m = (window._price5m||{})[f.sym]||[];
