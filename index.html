@@ -1769,11 +1769,13 @@ function calcLongScore(f, flashEntry){
     else if(trend5m>=0.2) score += 5;
   }
 
-  // 5. RSI (15 puan)
+  // 5. RSI (15 puan) — düşük RSI bonus, yüksek RSI ceza
   if(f.rsi){
     if(f.rsi < 35) score += 15;
     else if(f.rsi < 45) score += 10;
     else if(f.rsi < 55) score += 5;
+    else if(f.rsi > 80) score -= 10; // aşırı alım ceza
+    else if(f.rsi > 70) score -= 5;  // yüksek RSI hafif ceza
   }
 
   // 6. Funding negatif (10 puan)
@@ -1884,7 +1886,7 @@ function renderLongOpportunities(){
     }
 
     return { ...f, score, futCoin, kriterler, abovePrevClose };
-  }).filter(Boolean).filter(c=>c.abovePrevClose && !(c.futCoin.rsi && c.futCoin.rsi>70)).sort((a,b)=>b.score-a.score).slice(0,10);
+  }).filter(Boolean).filter(c=>c.abovePrevClose).sort((a,b)=>b.score-a.score).slice(0,10);
 
   if(!longCands.length){
     grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Değişim izleniyor...</div>';
