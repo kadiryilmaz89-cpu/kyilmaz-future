@@ -1849,19 +1849,19 @@ function renderLongOpportunities(){
     const sigPrice = f.signalPrice||f.price||0; // önceki mum kapanışı
     const curPrice = parseFloat(futCoin.price)||f.price||0;
 
-    // Önceki mumun dibi (low)
+    // Önceki mumun dibinin üstünde mi? — _kline15m önce, yoksa klinesMap15m
+    const kline15m = (window._kline15m||{})[f.sym];
     const kl15c = klinesMap15m[f.sym];
-    const prevLow = (kl15c&&kl15c.length>=2) ? kl15c[kl15c.length-2].l : 0;
-    const abovePrevLow = prevLow>0 ? curPrice>prevLow : curPrice>sigPrice;
+    const prevLow = kline15m?.prevLow || ((kl15c&&kl15c.length>=2) ? kl15c[kl15c.length-2].l : 0);
+    const abovePrevLow = prevLow>0 ? curPrice>prevLow : true;
 
-    // 1 saat önceki mumun dibinden yüksek mi?
+    // Son 1 saat kapanışından yüksek mi?
     const kline1hClose = (window._kline1hClose||{})[f.sym];
     const kl1hc = klinesMap1h[f.sym];
-    // Son 1h mumun low'u — dipten yükseliş kontrolü
-    const kline1hLow = (window._kline1hLow||{})[f.sym];
-    const price1hLow = kline1hLow || ((kl1hc && kl1hc.length>=1) ? kl1hc[kl1hc.length-1].l : 0);
-    const abovePrice1h = price1hLow>0 ? curPrice>price1hLow : true;
-    const abovePrevClose = abovePrevLow && abovePrice1h;
+    const price1hClose = kline1hClose || ((kl1hc&&kl1hc.length>=2) ? kl1hc[kl1hc.length-2].c : 0);
+    const above1hClose = price1hClose>0 ? curPrice>price1hClose : true;
+
+    const abovePrevClose = abovePrevLow && above1hClose;
 
     // 5dk trendi (bonus)
     const prices5m = (window._price5m||{})[f.sym]||[];
@@ -3682,20 +3682,34 @@ async function flashPoll(){
     const timeEl = document.getElementById('flashTime');
     if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 
-    // Her 10 poll'da bir (5dk) flashHistory coinleri için 1h kline çek
+    // Her 10 poll'da bir (5dk) flashHistory coinleri için 1h ve 15m kline çek
     if(!window._kline1hPollCount) window._kline1hPollCount = 0;
     window._kline1hPollCount++;
     if(window._kline1hPollCount % 10 === 1){
       const syms = [...new Set(flashHistory.map(f=>f.sym))].slice(0,20);
       syms.forEach(async sym=>{
         try{
-          const r = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=2`);
-          const d = await r.json();
-          if(d && d.length>=1){
+          // 1h kline
+          const r1h = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=2`);
+          const d1h = await r1h.json();
+          if(d1h && d1h.length>=1){
             if(!window._kline1hClose) window._kline1hClose={};
             if(!window._kline1hLow) window._kline1hLow={};
-            window._kline1hClose[sym] = parseFloat(d[d.length-2]?.[4]||d[d.length-1][4]);
-            window._kline1hLow[sym] = parseFloat(d[d.length-1][3]); // şu anki 1h mumun low'u
+            window._kline1hClose[sym] = parseFloat(d1h[d1h.length-2]?.[4]||d1h[d1h.length-1][4]);
+            window._kline1hLow[sym] = parseFloat(d1h[d1h.length-1][3]);
+          }
+          // 15m kline — önceki mumun low ve close'u için
+          const r15 = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=15m&limit=3`);
+          const d15 = await r15.json();
+          if(d15 && d15.length>=2){
+            if(!window._kline15m) window._kline15m={};
+            window._kline15m[sym] = {
+              prevClose: parseFloat(d15[d15.length-2][4]),
+              prevLow: parseFloat(d15[d15.length-2][3]),
+              prevHigh: parseFloat(d15[d15.length-2][2]),
+              curClose: parseFloat(d15[d15.length-1][4]),
+              curOpen: parseFloat(d15[d15.length-1][1])
+            };
           }
         }catch(e){}
       });
