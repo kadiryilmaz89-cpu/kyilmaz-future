@@ -1843,11 +1843,21 @@ function renderLongOpportunities(){
     const fr=fundingData.find(x=>x.sym===f.sym);
     if(fr?.rate<0) kriterler.push('Fund '+fr.rate?.toFixed(3)+'%');
 
-    // Önceki mum kapanışından yüksek mi? (zorunlu koşul)
-    const sigPrice = f.signalPrice||f.price||0;
-    const firstPrice = f.firstPrice||f.price||0;
+    // Önceki mum dibinin üstünde VE 1 saat önceki fiyatından yüksek mi?
+    const sigPrice = f.signalPrice||f.price||0; // önceki mum kapanışı
     const curPrice = parseFloat(futCoin.price)||f.price||0;
-    const abovePrevClose = sigPrice>0 && curPrice>sigPrice;
+
+    // Önceki mumun dibi (low)
+    const kl15c = klinesMap15m[f.sym];
+    const prevLow = (kl15c&&kl15c.length>=2) ? kl15c[kl15c.length-2].l : 0;
+    const abovePrevLow = prevLow>0 ? curPrice>prevLow : curPrice>sigPrice;
+
+    // 1 saat önceki fiyat — _price5m'de en eski kayıt (~10 poll = 5dk, 1sa için ayrı saklayalım)
+    const prices1h = (window._price1h||{})[f.sym]||[];
+    const price1hAgo = prices1h.length>0 ? prices1h[0] : 0;
+    const abovePrice1h = price1hAgo>0 ? curPrice>price1hAgo : true;
+
+    const abovePrevClose = abovePrevLow && abovePrice1h;
 
     // 5dk trendi (bonus)
     const prices5m = (window._price5m||{})[f.sym]||[];
@@ -1872,7 +1882,7 @@ function renderLongOpportunities(){
     }
 
     return { ...f, score, futCoin, kriterler, abovePrevClose };
-  }).filter(Boolean).filter(c=>c.abovePrevClose && !(c.futCoin.rsi && c.futCoin.rsi>60)).sort((a,b)=>b.score-a.score).slice(0,10);
+  }).filter(Boolean).filter(c=>c.abovePrevClose && !(c.futCoin.rsi && c.futCoin.rsi>70)).sort((a,b)=>b.score-a.score).slice(0,10);
 
   if(!longCands.length){
     grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Değişim izleniyor...</div>';
@@ -3641,6 +3651,12 @@ async function flashPoll(){
       if(!window._price5m[sym]) window._price5m[sym]=[];
       window._price5m[sym].push(price);
       if(window._price5m[sym].length>10) window._price5m[sym].shift();
+
+      // 1 saatlik fiyat geçmişi (120 poll = 1 saat)
+      if(!window._price1h) window._price1h={};
+      if(!window._price1h[sym]) window._price1h[sym]=[];
+      window._price1h[sym].push(price);
+      if(window._price1h[sym].length>120) window._price1h[sym].shift();
       if(!window._priceHigh5m) window._priceHigh5m={};
       const h5r = window._priceHigh5m[sym];
       if(!h5r || price > h5r.high || (Date.now()-h5r.time)>300000){
