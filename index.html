@@ -1752,22 +1752,29 @@ function renderLongOpportunities(){
     if(fr?.rate<0) kriterler.push('Fund '+fr.rate?.toFixed(3)+'%');
 
     // Önceki mum dibinin üstünde VE 1 saat önceki fiyatından yüksek mi?
-    const sigPrice = f.signalPrice||f.price||0; // önceki mum kapanışı
+    const sigPrice = f.signalPrice||f.price||0;
     const curPrice = parseFloat(futCoin.price)||f.price||0;
 
-    // Önceki mumun dibinin üstünde mi?
+    // Önceki mumun kapanışı ve dibi
     const kline15m = (window._kline15m||{})[f.sym];
     const kl15c = klinesMap15m[f.sym];
     const prevLow = kline15m?.prevLow || ((kl15c&&kl15c.length>=2) ? kl15c[kl15c.length-2].l : 0);
+    const prevClose15 = kline15m?.prevClose || ((kl15c&&kl15c.length>=2) ? kl15c[kl15c.length-2].c : 0);
     const abovePrevLow = prevLow>0 ? curPrice>prevLow : true;
+    const abovePrevClose15 = prevClose15>0 ? curPrice>prevClose15 : true;
 
-    // Son 1 saat kapanışından yüksek mi?
+    // Son 3 mum kirmizi mi? (kline15m gelmediyse klinesMap15m kullan)
+    const son3Arr = kl15c&&kl15c.length>=3 ? kl15c.slice(-3) : null;
+    const son3Kirmizi = son3Arr ? son3Arr.every(k=>k.c<k.o) : false;
+
+    // Son 1 saat kapanisinden yuksek mi?
     const kline1hClose = (window._kline1hClose||{})[f.sym];
     const kl1hc = klinesMap1h[f.sym];
     const price1hClose = kline1hClose || ((kl1hc&&kl1hc.length>=2) ? kl1hc[kl1hc.length-2].c : 0);
     const above1hClose = price1hClose>0 ? curPrice>price1hClose : true;
 
-    const abovePrevClose = abovePrevLow && above1hClose;
+    // Son 3 mum kirmiziysa veya önceki mum kapanisinin altindaysa -> dusene al
+    const abovePrevClose = !son3Kirmizi && abovePrevClose15 && abovePrevLow && above1hClose;
 
     // 5dk trendi (bonus)
     const prices5m = (window._price5m||{})[f.sym]||[];
