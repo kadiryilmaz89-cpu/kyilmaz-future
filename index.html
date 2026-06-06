@@ -1852,12 +1852,13 @@ function renderLongOpportunities(){
     const prevLow = (kl15c&&kl15c.length>=2) ? kl15c[kl15c.length-2].l : 0;
     const abovePrevLow = prevLow>0 ? curPrice>prevLow : curPrice>sigPrice;
 
-    // 1 saat önceki fiyat — _price5m'de en eski kayıt (~10 poll = 5dk, 1sa için ayrı saklayalım)
-    // 1 saat önceki fiyat — önce _kline1hClose, yoksa klinesMap1h
+    // 1 saat önceki mumun dibinden yüksek mi?
     const kline1hClose = (window._kline1hClose||{})[f.sym];
     const kl1hc = klinesMap1h[f.sym];
-    const price1hAgo = kline1hClose || ((kl1hc && kl1hc.length>=2) ? kl1hc[kl1hc.length-2].c : 0);
-    const abovePrice1h = price1hAgo>0 ? curPrice>price1hAgo : true;
+    // Son 1h mumun low'u — dipten yükseliş kontrolü
+    const kline1hLow = (window._kline1hLow||{})[f.sym];
+    const price1hLow = kline1hLow || ((kl1hc && kl1hc.length>=1) ? kl1hc[kl1hc.length-1].l : 0);
+    const abovePrice1h = price1hLow>0 ? curPrice>price1hLow : true;
     const abovePrevClose = abovePrevLow && abovePrice1h;
 
     // 5dk trendi (bonus)
@@ -3552,13 +3553,22 @@ function startWebSocket(){
           }
           flashData=flashData.slice(0,15);
 
-          // Geçmiş listesine ekle — ilk sinyal fiyatını koru
+          // Geçmiş listesine ekle — ilk sinyal yeşilse kırmızı sinyalde firstChPct korunsun
           const hEx = flashHistory.findIndex(x=>x.sym===sym);
           if(hEx>=0){
             const existing = flashHistory.splice(hEx,1)[0];
-            flashHistory.unshift({...entry, signalPrice: existing.signalPrice, signalTime: existing.signalTime, firstPrice: existing.firstPrice||existing.price, firstChPct: existing.firstChPct||existing.chPct});
+            // İlk sinyal yeşilse firstChPct ve firstPrice korunsun
+            const keepFirst = existing.firstUp !== false; // ilk sinyal yeşildi
+            flashHistory.unshift({
+              ...entry,
+              signalPrice: existing.signalPrice,
+              signalTime: existing.signalTime,
+              firstPrice: existing.firstPrice||existing.price,
+              firstChPct: existing.firstChPct||existing.chPct,
+              firstUp: existing.firstUp !== undefined ? existing.firstUp : existing.up
+            });
           } else {
-            flashHistory.unshift({...entry, firstPrice: price, firstChPct: ch?.toFixed(2)});
+            flashHistory.unshift({...entry, firstPrice: price, firstChPct: ch?.toFixed(2), firstUp: ch>0});
           }
           flashHistory=flashHistory.slice(0,20);
           saveToGist();
@@ -3631,9 +3641,9 @@ async function flashPoll(){
           const hEx = flashHistory.findIndex(x=>x.sym===sym);
           if(hEx>=0){
             const existing = flashHistory.splice(hEx,1)[0];
-            flashHistory.unshift(Object.assign({},entry,{signalPrice:existing.signalPrice, signalTime:existing.signalTime, firstPrice:existing.firstPrice||existing.price, firstChPct:existing.firstChPct||existing.chPct}));
+            flashHistory.unshift(Object.assign({},entry,{signalPrice:existing.signalPrice, signalTime:existing.signalTime, firstPrice:existing.firstPrice||existing.price, firstChPct:existing.firstChPct||existing.chPct, firstUp:existing.firstUp!==undefined?existing.firstUp:existing.up}));
           } else {
-            flashHistory.unshift(Object.assign({},entry,{firstPrice:price, firstChPct:ch.toFixed(2)}));
+            flashHistory.unshift(Object.assign({},entry,{firstPrice:price, firstChPct:ch.toFixed(2), firstUp:ch>0}));
           }
           flashHistory = flashHistory.slice(0,20);
           saveToGist();
@@ -3679,9 +3689,11 @@ async function flashPoll(){
         try{
           const r = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=2`);
           const d = await r.json();
-          if(d && d.length>=2){
+          if(d && d.length>=1){
             if(!window._kline1hClose) window._kline1hClose={};
-            window._kline1hClose[sym] = parseFloat(d[d.length-2][4]); // önceki saatin kapanışı
+            if(!window._kline1hLow) window._kline1hLow={};
+            window._kline1hClose[sym] = parseFloat(d[d.length-2]?.[4]||d[d.length-1][4]);
+            window._kline1hLow[sym] = parseFloat(d[d.length-1][3]); // şu anki 1h mumun low'u
           }
         }catch(e){}
       });
@@ -3736,7 +3748,8 @@ function renderFlashHistory(){
     // Onceki mum kapamisindan simdi
     const pctFromPrevClose = sigPrice>0?((curPrice-sigPrice)/sigPrice*100):0;
 
-    const isAbove = pctFromPrevClose>=0;
+    // Önceki mum kapanışına göre üstünde/altında
+    const isAbove = pctFromPrevClose>=0 && (f.firstUp !== false);
     const ago = Math.round((now-(f.signalTime||now))/60000);
     const sigTime = f.signalTime?new Date(f.signalTime).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}):'';
     return {f, firstChPct, pctFromSig, pctFromPrevClose, isAbove, ago, sigTime};
