@@ -1817,29 +1817,38 @@ function renderLongOpportunities(){
   const source = flashHistory;
 
   const longCands = source.map(f=>{
-    const futCoin = allFutures.find(x=>x.sym===f.sym);
-    if(!futCoin) return null;
+    // allFutures boş olsa da temel obje oluştur
+    const futCoin = allFutures.find(x=>x.sym===f.sym) || {sym:f.sym, price:f.price, rsi:null, klines4h:null};
     const score = calcLongScore(futCoin, f);
     const kriterler = [];
     if(parseFloat(f.chPct)>=1) kriterler.push('📈 '+f.chPct+'%');
-    const kl1h = klinesMap1h[futCoin.sym];
+    const kl1h = klinesMap1h[f.sym];
     if(kl1h?.length>=10){
       const son1h=kl1h[kl1h.length-1];
       const avg=kl1h.slice(-25,-1).reduce((a,k)=>a+k.v*k.c,0)/24;
       const ratio=avg>0?(son1h.v*son1h.c)/avg:0;
       if(ratio>=1.35) kriterler.push('Hacim '+ratio.toFixed(1)+'x');
     }
-    const kl15=klinesMap15m[futCoin.sym];
+    const kl15=klinesMap15m[f.sym];
     if(kl15?.length>=3){
       const yesil=kl15.slice(-3).filter(k=>k.c>k.o).length;
       if(yesil>=2) kriterler.push(yesil+'/3 🕯');
     }
     if(futCoin.rsi && futCoin.rsi<45) kriterler.push('RSI '+futCoin.rsi?.toFixed(0));
-    const fr=fundingData.find(x=>x.sym===futCoin.sym);
+    const fr=fundingData.find(x=>x.sym===f.sym);
     if(fr?.rate<0) kriterler.push('Fund '+fr.rate?.toFixed(3)+'%');
 
+    // Önceki mum kapanışından yüksek mi? (zorunlu koşul)
+    const sigPrice = f.signalPrice||f.price||0;
+    const curPrice = parseFloat(futCoin.price)||f.price||0;
+    const abovePrevClose = sigPrice>0 && curPrice>sigPrice;
+
+    // 5dk trendi (bonus)
+    const prices5m = (window._price5m||{})[f.sym]||[];
+    const trend5mOk = prices5m.length>=3 && prices5m[prices5m.length-1]>prices5m[0];
+
     // 80+ popup ver ve sanal poz aç
-    if(score>=80){
+    if(score>=80 && abovePrevClose){
       const alertKey = 'kflong80_'+f.sym;
       const last = parseInt(localStorage.getItem(alertKey)||'0');
       if(Date.now()-last > 1800000){
@@ -3535,6 +3544,7 @@ function startWebSocket(){
             flashHistory.unshift({...entry, firstPrice: price, firstChPct: ch?.toFixed(2)});
           }
           flashHistory=flashHistory.slice(0,20);
+          saveToGist();
 
           updateFlash();
           if(Math.abs(ch)>=1){
@@ -3609,6 +3619,7 @@ async function flashPoll(){
             flashHistory.unshift(Object.assign({},entry,{firstPrice:price, firstChPct:ch.toFixed(2)}));
           }
           flashHistory = flashHistory.slice(0,20);
+          saveToGist();
           if(Math.abs(ch)>=1) { try{ showTicker('⚡ FLASH: '+sym.replace('USDT','')+(ch>0?' 📈':' 📉')+(ch>=0?' +':' ')+ch.toFixed(2)+'%'); }catch(e){} }
         }
       }
@@ -5620,6 +5631,8 @@ async function updateMarketReport(force=false){
 
 // Her dakika saat kontrolü yap
 setInterval(()=>{ if(allFutures.length) updateMarketReport(); }, 60000);
+// Sayfa açılınca hemen hazırla
+document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(()=>updateMarketReport(true), 3000); });
 
 function showChart(sym){
   const coin = sym.replace('USDT','');
