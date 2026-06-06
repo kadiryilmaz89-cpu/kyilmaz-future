@@ -1727,12 +1727,13 @@ function calcLongScore(f, flashEntry){
   let score = 0;
   const sym = f.sym;
   const isUp = flashEntry && flashEntry.up;
+  const curPrice = parseFloat(f.price||f.lastPrice)||0;
 
   // 1. Hareket puanı - sadece yükselende (20 puan)
   if(isUp && parseFloat(flashEntry.chPct)>=1) score += 20;
   else if(isUp && parseFloat(flashEntry.chPct)>=0.5) score += 10;
 
-  // 2. Hacim artışı (25 puan)
+  // 2. Hacim artışı 1h (25 puan)
   const kl1h = klinesMap1h[sym];
   if(kl1h && kl1h.length>=10){
     const son1h = kl1h[kl1h.length-1];
@@ -1742,38 +1743,49 @@ function calcLongScore(f, flashEntry){
     else if(volRatio >= 1.15) score += 12;
   }
 
-  // 3. Son 3 mum 15m yeşil (20 puan)
+  // 3. Son 3 mum 15m yeşil (15 puan)
   const kl15 = klinesMap15m[sym];
   if(kl15 && kl15.length>=3){
     const yesil = kl15.slice(-3).filter(k=>k.c>k.o).length;
-    if(yesil===3) score += 20;
-    else if(yesil===2) score += 10;
+    if(yesil===3) score += 15;
+    else if(yesil===2) score += 7;
   }
 
-  // 4. RSI (20 puan)
+  // 4. 5dk trend — son 10 poll fiyatı sürekli yükseliyor mu (15 puan)
+  if(!window._price5m) window._price5m={};
+  const prices5m = window._price5m[sym]||[];
+  if(prices5m.length>=5){
+    const ilk = prices5m[0];
+    const son = prices5m[prices5m.length-1];
+    const trend5m = (son-ilk)/ilk*100;
+    const surekli = prices5m.every((p,i)=>i===0||p>=prices5m[i-1]);
+    if(surekli && trend5m>=0.3) score += 15;
+    else if(trend5m>=0.5) score += 10;
+    else if(trend5m>=0.2) score += 5;
+  }
+
+  // 5. RSI (15 puan)
   if(f.rsi){
-    if(f.rsi < 35) score += 20;
-    else if(f.rsi < 45) score += 14;
-    else if(f.rsi < 55) score += 7;
+    if(f.rsi < 35) score += 15;
+    else if(f.rsi < 45) score += 10;
+    else if(f.rsi < 55) score += 5;
   }
 
-  // 5. Funding negatif (15 puan)
+  // 6. Funding negatif (10 puan)
   const fr = fundingData.find(x=>x.sym===sym);
   if(fr){
-    if(fr.rate < -0.03) score += 15;
-    else if(fr.rate < 0) score += 8;
+    if(fr.rate < -0.03) score += 10;
+    else if(fr.rate < 0) score += 5;
   }
 
-  // 6. Sinyal fiyatının ustunde ise bonus (10 puan)
+  // 7. Sinyal fiyatının üstünde bonus (10 puan)
   const histEntry = flashHistory.find(x=>x.sym===sym);
   if(histEntry){
-    const curFut = allFutures.find(x=>x.sym===sym);
-    const curPrice = parseFloat(curFut&&curFut.price)||0;
     const sigPrice = histEntry.signalPrice||histEntry.price||0;
     if(sigPrice>0 && curPrice>sigPrice) score += 10;
   }
 
-  // Dusen coin ise max 15 puanla sinirla
+  // Düşen coin ise max 15 puanla sınırla
   if(!isUp) score = Math.min(score, 15);
 
   return Math.min(score, 100);
@@ -3576,6 +3588,12 @@ async function flashPoll(){
       if(!window._tickPrices[sym]) window._tickPrices[sym]=[];
       window._tickPrices[sym].push(price);
       if(window._tickPrices[sym].length>5) window._tickPrices[sym].shift();
+
+      // 5dk fiyat geçmişi (her poll = 30sn, 10 poll = 5dk)
+      if(!window._price5m) window._price5m={};
+      if(!window._price5m[sym]) window._price5m[sym]=[];
+      window._price5m[sym].push(price);
+      if(window._price5m[sym].length>10) window._price5m[sym].shift();
       if(!window._priceHigh5m) window._priceHigh5m={};
       const h5r = window._priceHigh5m[sym];
       if(!h5r || price > h5r.high || (Date.now()-h5r.time)>300000){
