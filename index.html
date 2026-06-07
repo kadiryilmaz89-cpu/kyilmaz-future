@@ -4103,24 +4103,22 @@ function renderFlashHistory(){
     const curPrevClose = kline15mCur?.prevClose || (kl15Cur&&kl15Cur.length>=2?kl15Cur[kl15Cur.length-2].c:0) || sigPrice;
     const pctFromPrevClose = curPrevClose>0?((curPrice-curPrevClose)/curPrevClose*100):0;
 
-    // Önceki mum kapanışına göre üstünde/altında
-    // 1h ortalaması vs 4h ortalaması karşılaştırması
+    // Yükselen/düşen belirleme:
+    // 1) 1h ortalaması varsa: curPrice > avg1h
+    // 2) Yoksa: önceki mum kapanışına göre
     const kl1hRFH = klinesMap1h[f.sym];
-    const kline1hCloseRFH = (window._kline1hClose||{})[f.sym];
     let avg1h = 0, avg4h = 0;
     if(kl1hRFH && kl1hRFH.length>=4){
-      avg1h = kl1hRFH.slice(-1)[0]?.c || 0;
+      avg1h = kl1hRFH.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(kl1hRFH.length,10);
       avg4h = kl1hRFH.slice(-4).reduce((a,k)=>a+k.c,0)/4;
-    } else if(kline1hCloseRFH){
-      avg1h = kline1hCloseRFH;
     }
-
-    // Yükselen/düşen belirleme
     let isAbove;
     if(avg1h>0 && avg4h>0){
-      isAbove = avg1h > avg4h;
+      // Hem 1h ortalamasının üstünde HEM 4h ortalamasının üstünde olmalı
+      isAbove = curPrice > avg1h && curPrice > avg4h;
     } else {
-      isAbove = pctFromPrevClose>=0;
+      // Kline yoksa önceki mum kapanışına bak
+      isAbove = pctFromPrevClose >= 0;
     }
     const ago = Math.round((now-(f.signalTime||now))/60000);
     const sigTime = f.signalTime?new Date(f.signalTime).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}):'';
