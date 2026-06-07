@@ -3748,16 +3748,24 @@ function renderLast10Signals(){
   }
 
   const fmtP = (p)=>{
-    if(!p) return null;
+    if(!p) return '--';
     const d = p>100?2:p>1?4:6;
     return '$'+p.toLocaleString('tr-TR',{minimumFractionDigits:d,maximumFractionDigits:d});
   };
+
+  const header = `<div style="display:grid;grid-template-columns:48px 1fr 1fr 42px 42px 52px;gap:4px;padding:3px 6px;font-size:8px;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:4px">
+    <div>Coin</div>
+    <div style="text-align:center">1. Sinyal</div>
+    <div style="text-align:center">Son Sinyal</div>
+    <div style="text-align:center">1h</div>
+    <div style="text-align:center">4h</div>
+    <div style="text-align:center">Mumlar</div>
+  </div>`;
 
   const items = pozlar.map(p=>{
     const futCoin = allFutures.find(x=>x.sym===p.sym)||{sym:p.sym,price:0};
     const curPrice = parseFloat(futCoin.price)||0;
 
-    // 1h ve 4h ortalama
     const kl1hS = klinesMap1h[p.sym];
     const kline1hClS = (window._kline1hClose||{})[p.sym];
     const avg1hS = kline1hClS||(kl1hS&&kl1hS.length>=1?kl1hS[kl1hS.length-1].c:0);
@@ -3765,58 +3773,38 @@ function renderLast10Signals(){
     const pct1h = avg1hS>0?((curPrice-avg1hS)/avg1hS*100):null;
     const pct4h = avg4hS>0?((curPrice-avg4hS)/avg4hS*100):null;
 
-    // Mum renkleri
     const kl15S = klinesMap15m[p.sym];
     const kline15mS = (window._kline15m||{})[p.sym];
     let mumlar = '';
     if(kl15S&&kl15S.length>=4) mumlar = kl15S.slice(-4).map(k=>k.c>k.o?'🟢':'🔴').join('');
     else if(kline15mS?.mumRenkleri) mumlar = kline15mS.mumRenkleri.join('');
 
-    // İlk ve son sinyal
     const ilk = p.sig1;
-    const son = p.sig3||p.sig2||p.sig1;
-    const ayni = !p.sig2 && !p.sig3;
-
-    const sigCol = (s)=>s>=80?'var(--green)':s>=55?'#f59e0b':'var(--text2)';
+    const son = p.sig3||p.sig2||null;
+    const sc = (s)=>s>=80?'var(--green)':s>=55?'#f59e0b':'var(--text2)';
     const col1h = pct1h!==null?(pct1h>=0?'var(--green)':'var(--red)'):'var(--text2)';
     const col4h = pct4h!==null?(pct4h>=0?'var(--green)':'var(--red)'):'var(--text2)';
-    const ago = Math.round((Date.now()-(p.lastTime||Date.now()))/60000);
 
-    return `<div onclick="showDetail('${p.sym}')" style="background:var(--bg2);border-radius:8px;padding:8px 10px;cursor:pointer;margin-bottom:4px">
-      <!-- 1. Satır: Coin + İlk Sinyal + Son Sinyal -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-        <div style="font-size:13px;font-weight:900;min-width:60px">${p.sym.replace('USDT','')}</div>
-        <div style="display:flex;gap:6px;flex:1;justify-content:center">
-          <!-- İlk sinyal -->
-          <div style="background:rgba(255,255,255,.05);border-radius:6px;padding:4px 8px;text-align:center;min-width:80px">
-            <div style="font-size:8px;color:var(--text2);margin-bottom:1px">İlk Sinyal</div>
-            <div style="font-size:11px;font-weight:800;color:${sigCol(ilk?.score)}">${ilk?.score||'--'}p</div>
-            <div style="font-size:9px;color:var(--text2)">${fmtP(ilk?.price)||'--'}</div>
-            <div style="font-size:8px;color:var(--text2)">${ilk?.time||''}</div>
-          </div>
-          <!-- Son sinyal -->
-          ${!ayni?`<div style="background:rgba(0,212,161,.08);border-radius:6px;padding:4px 8px;text-align:center;min-width:80px;border:1px solid rgba(0,212,161,.2)">
-            <div style="font-size:8px;color:var(--green);margin-bottom:1px">Son Sinyal</div>
-            <div style="font-size:11px;font-weight:800;color:${sigCol(son?.score)}">${son?.score||'--'}p</div>
-            <div style="font-size:9px;color:var(--text2)">${fmtP(son?.price)||'--'}</div>
-            <div style="font-size:8px;color:var(--text2)">${son?.time||''}</div>
-          </div>`:''}
-        </div>
-        <div style="font-size:9px;color:var(--text2);text-align:right">${ago}dk</div>
-      </div>
-      <!-- 2. Satır: 1h Ort + 4h Ort + Mumlar -->
-      <div style="display:flex;gap:8px;align-items:center;font-size:10px">
-        <div style="color:var(--text2)">1h: <span style="color:${col1h}">${pct1h!==null?(pct1h>=0?'+':'')+pct1h.toFixed(1)+'%':'--'}</span></div>
-        <div style="color:var(--text2)">4h: <span style="color:${col4h}">${pct4h!==null?(pct4h>=0?'+':'')+pct4h.toFixed(1)+'%':'--'}</span></div>
-        <div style="margin-left:auto;font-size:11px">${mumlar}</div>
-      </div>
+    const sigCell = (sig, label)=> sig ? 
+      `<div style="text-align:center;line-height:1.3">
+        <div style="font-size:10px;font-weight:800;color:${sc(sig.score)}">${sig.score}p</div>
+        <div style="font-size:8px;color:var(--text2)">${fmtP(sig.price)}</div>
+        <div style="font-size:7px;color:var(--text2)">${sig.time||''}</div>
+      </div>` :
+      `<div style="text-align:center;color:var(--text2);font-size:9px">--</div>`;
+
+    return `<div onclick="showDetail('${p.sym}')" style="display:grid;grid-template-columns:48px 1fr 1fr 42px 42px 52px;gap:4px;align-items:center;padding:5px 6px;background:var(--bg2);border-radius:7px;cursor:pointer">
+      <div style="font-size:11px;font-weight:900">${p.sym.replace('USDT','')}</div>
+      ${sigCell(ilk)}
+      ${sigCell(son)}
+      <div style="text-align:center;font-size:10px;color:${col1h}">${pct1h!==null?(pct1h>=0?'+':'')+pct1h.toFixed(1)+'%':'--'}</div>
+      <div style="text-align:center;font-size:10px;color:${col4h}">${pct4h!==null?(pct4h>=0?'+':'')+pct4h.toFixed(1)+'%':'--'}</div>
+      <div style="text-align:center;font-size:10px">${mumlar||'--'}</div>
     </div>`;
   }).join('');
 
-  el.innerHTML = items;
+  el.innerHTML = header + items;
 }
-
-
 function renderFlashHistory(){
   const el = $('flashHistoryGrid');
   if(!el || !flashHistory.length) return;
