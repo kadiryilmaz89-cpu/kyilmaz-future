@@ -1762,182 +1762,181 @@ function calcLongScore(f, flashEntry){
   return Math.min(score, 100);
 }
 
-function calcShortScore(f, flashEntry){
+function calcShortScore(f){
+  // f = allFutures'tan gelen coin objesi
   let score = 0;
   const sym = f.sym;
-  const isDown = flashEntry && !flashEntry.up;
-  const tickerData = (window._tickerCache||{})[sym]||{};
-  const curPrice = parseFloat(f.price||f.lastPrice||tickerData.price)||0;
-
-  // 1. Düşüş hareketi (20 puan)
-  if(isDown && Math.abs(parseFloat(flashEntry.chPct))>=1) score += 20;
-  else if(isDown && Math.abs(parseFloat(flashEntry.chPct))>=0.5) score += 10;
-
-  // 2. Hacim artışı (25 puan) — düşüşü onaylayan satış baskısı
+  const curPrice = parseFloat(f.price)||0;
+  const kl15 = klinesMap15m[sym];
   const kl1h = klinesMap1h[sym];
+
+  // ── ZORUNLU FİLTRELER (bunlar sağlanmazsa zaten listeye girmez) ──
+  // 1. Son 1h ortalamasının altında (25 puan)
   if(kl1h && kl1h.length>=10){
-    const son1h = kl1h[kl1h.length-1];
-    const avg24h = kl1h.slice(-25,-1).reduce((a,k)=>a+k.v*k.c,0)/24;
-    const volRatio = avg24h>0?(son1h.v*son1h.c)/avg24h:0;
-    if(volRatio >= 1.35) score += 25;
-    else if(volRatio >= 1.15) score += 12;
+    const avg1h = kl1h.slice(-10).reduce((a,k)=>a+k.c,0)/10;
+    if(curPrice < avg1h) score += 25;
   }
 
-  // 3. Son 3 mum kırmızı (20 puan)
-  const kl15 = klinesMap15m[sym];
+  // 2. Son 4h ortalamasının altında (20 puan)
+  if(kl1h && kl1h.length>=4){
+    const avg4h = kl1h.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+    if(curPrice < avg4h) score += 20;
+  }
+
+  // 3. Son mum kırmızı — zorunlu (15 puan)
+  if(kl15 && kl15.length>=1){
+    const sonMum = kl15[kl15.length-1];
+    if(sonMum.c < sonMum.o) score += 15;
+  }
+
+  // 4. Son 3 mumdan en az 2'si kırmızı (15 puan)
+  if(kl15 && kl15.length>=3){
+    const kirmizi = kl15.slice(-3).filter(k=>k.c<k.o).length;
+    if(kirmizi >= 3) score += 15;
+    else if(kirmizi >= 2) score += 10;
+  }
+
+  // 5. Bir önceki mumun low'unun altına sarkmış (25 puan) ← güçlü kırılım
   if(kl15 && kl15.length>=2){
     const sonMum = kl15[kl15.length-1];
     const oncekiMum = kl15[kl15.length-2];
-    const kirmizi = kl15.slice(-3).filter(k=>k.c<k.o).length;
-    const gucluDusus = sonMum.c<sonMum.o && curPrice<oncekiMum.c && sonMum.v>oncekiMum.v;
-    if(gucluDusus) score += 20;
-    else if(kirmizi>=2) score += 10;
+    if(sonMum.l < oncekiMum.l) score += 25;
   }
 
-  // 4. 5dk düşüş trendi (15 puan)
-  const prices5m = (window._price5m||{})[sym]||[];
-  if(prices5m.length>=5){
-    const ilk = prices5m[0];
-    const son = prices5m[prices5m.length-1];
-    const trend5m = (son-ilk)/ilk*100;
-    const surekli = prices5m.every((p,i)=>i===0||p<=prices5m[i-1]);
-    if(surekli && trend5m<=-0.3) score += 15;
-    else if(trend5m<=-0.5) score += 10;
-    else if(trend5m<=-0.2) score += 5;
-  }
-
-  // 5. RSI yüksekse bonus (aşırı alım = düşüş beklenir)
+  // ── BONUS KRİTERLER ──
+  // RSI aşırı alım (10 puan bonus)
   if(f.rsi){
-    if(f.rsi > 70) score += 15;
-    else if(f.rsi > 60) score += 10;
-    else if(f.rsi > 55) score += 5;
-    else if(f.rsi < 30) score -= 10;
-    else if(f.rsi < 40) score -= 5;
+    if(f.rsi > 70) score += 10;
+    else if(f.rsi > 60) score += 5;
+    else if(f.rsi < 35) score -= 15; // RSI çok düşükse short tehlikeli
   }
 
-  // 6. Funding pozitif (10 puan) — long ağırlıklı, short için iyi
+  // Funding pozitif = long sıkışması, short için iyi (5 puan bonus)
   const fr = fundingData.find(x=>x.sym===sym);
-  if(fr){
-    if(fr.rate > 0.03) score += 10;
-    else if(fr.rate > 0) score += 5;
-  }
-
-  // 7. Sinyal fiyatının altındaysa bonus (20 puan)
-  const histEntry = flashHistory.find(x=>x.sym===sym);
-  if(histEntry){
-    const sigPriceH = histEntry.signalPrice||histEntry.price||0;
-    if(sigPriceH>0 && curPrice<sigPriceH) score += 20;
-  }
-
-  // 8. 4h ortalama kırılımı (aşağı) bonus (15 puan)
-  const kl1hFor4h = klinesMap1h[sym];
-  if(kl1hFor4h && kl1hFor4h.length>=4){
-    const avg4h = kl1hFor4h.slice(-4).reduce((a,k)=>a+k.c,0)/4;
-    if(avg4h>0 && curPrice<avg4h) score += 15;
-  }
-
-  // 9. Hacim trendi bonusu (15 puan)
-  const volHist = (window._volHistory||{})[sym]||[];
-  if(volHist.length>=4){
-    const son3vol = volHist.slice(-3);
-    const artiyor = son3vol[0]<son3vol[1] && son3vol[1]<son3vol[2];
-    const volAvg = volHist.slice(0,-3).reduce((a,b)=>a+b,0)/Math.max(volHist.length-3,1);
-    if(artiyor && volAvg>0 && son3vol[2]>volAvg*1.5) score += 15;
-    else if(artiyor) score += 7;
-  }
-
-  // Yükselen coin max 15 puan
-  if(!isDown) score = Math.min(score, 15);
+  if(fr && fr.rate > 0.01) score += 5;
 
   return Math.max(0, Math.min(score, 100));
+}
+
+function shortKriterlerKontrol(f){
+  // Zorunlu filtreleri kontrol et — bunlardan biri eksikse listeye alma
+  const sym = f.sym;
+  const curPrice = parseFloat(f.price)||0;
+  const kl15 = klinesMap15m[sym];
+  const kl1h = klinesMap1h[sym];
+
+  // Son mum kırmızı olmalı (zorunlu)
+  if(!kl15 || kl15.length < 2) return false;
+  const sonMum = kl15[kl15.length-1];
+  if(sonMum.c >= sonMum.o) return false; // son mum yeşilse geç
+
+  // Son 3 mumdan en az 2'si kırmızı olmalı (zorunlu)
+  const kirmizi = kl15.slice(-3).filter(k=>k.c<k.o).length;
+  if(kirmizi < 2) return false;
+
+  // 1h ortalamasının altında olmalı (zorunlu)
+  if(kl1h && kl1h.length>=10){
+    const avg1h = kl1h.slice(-10).reduce((a,k)=>a+k.c,0)/10;
+    if(curPrice >= avg1h) return false;
+  }
+
+  // 4h ortalamasının altında olmalı (zorunlu)
+  if(kl1h && kl1h.length>=4){
+    const avg4h = kl1h.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+    if(curPrice >= avg4h) return false;
+  }
+
+  return true;
 }
 
 function renderShortOpportunities(){
   const grid = $('shortOppGrid');
   const timeEl = $('shortOppTime');
   if(!grid) return;
+  if(!allFutures.length){
+    grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Tara butonuna basın...</div>';
+    return;
+  }
 
-  const source = flashHistory;
-  const shortCands = source.map(f=>{
-    const futCoin = allFutures.find(x=>x.sym===f.sym) || {sym:f.sym, price:f.price, rsi:null};
-    const score = calcShortScore(futCoin, f);
-    const kriterler = [];
-    if(parseFloat(f.chPct)<=-1) kriterler.push('📉 '+f.chPct+'%');
-    const kl1h = klinesMap1h[f.sym];
-    if(kl1h?.length>=10){
-      const son1h=kl1h[kl1h.length-1];
-      const avg=kl1h.slice(-25,-1).reduce((a,k)=>a+k.v*k.c,0)/24;
-      const ratio=avg>0?(son1h.v*son1h.c)/avg:0;
-      if(ratio>=1.35) kriterler.push('Hacim '+ratio.toFixed(1)+'x');
-    }
-    if(futCoin.rsi && futCoin.rsi>65) kriterler.push('RSI '+futCoin.rsi?.toFixed(0));
+  const shortCands = allFutures
+    .filter(f => shortKriterlerKontrol(f))
+    .map(f=>{
+      const score = calcShortScore(f);
+      const sym = f.sym;
+      const curPrice = parseFloat(f.price)||0;
+      const kl15 = klinesMap15m[sym];
+      const kl1h = klinesMap1h[sym];
+      const kriterler = [];
 
-    const curPrice = parseFloat(futCoin.price)||f.price||0;
-    const kline15m = (window._kline15m||{})[f.sym];
-    const kl15c = klinesMap15m[f.sym];
-    const prevClose15 = kline15m?.prevClose || ((kl15c&&kl15c.length>=2)?kl15c[kl15c.length-2].c:0);
-    const belowPrevClose = prevClose15>0 ? curPrice<prevClose15 : true;
+      // Kriter etiketleri
+      if(kl1h && kl1h.length>=10){
+        const avg1h = kl1h.slice(-10).reduce((a,k)=>a+k.c,0)/10;
+        kriterler.push('1h↓ '+(((avg1h-curPrice)/avg1h)*100).toFixed(1)+'%');
+      }
+      if(kl15 && kl15.length>=2){
+        const oncekiMum = kl15[kl15.length-2];
+        if(kl15[kl15.length-1].l < oncekiMum.l) kriterler.push('Low kırıldı');
+      }
+      if(f.rsi && f.rsi>65) kriterler.push('RSI '+f.rsi?.toFixed(0));
+      const chVal = parseFloat(f.ch)||0;
+      if(chVal < -1) kriterler.push(chVal.toFixed(1)+'%');
 
-    const kl1hRFH = klinesMap1h[f.sym];
-    const kline1hCloseRFH = (window._kline1hClose||{})[f.sym];
-    let avg1h=0, avg4h=0;
-    if(kl1hRFH&&kl1hRFH.length>=4){
-      avg1h=kl1hRFH.slice(-1)[0]?.c||0;
-      avg4h=kl1hRFH.slice(-4).reduce((a,k)=>a+k.c,0)/4;
-    } else if(kline1hCloseRFH){ avg1h=kline1hCloseRFH; }
-    const below1hAvg = avg1h>0&&avg4h>0 ? avg1h<avg4h : true;
+      return {...f, score, kriterler};
+    })
+    .filter(c => c.score >= 60) // 60 altı listeye girmesin
+    .sort((a,b)=>b.score-a.score)
+    .slice(0, 10);
 
-    const isShortCand = belowPrevClose && below1hAvg;
-
-    // 70+ popup
-    if(score>=70 && isShortCand){
-      const alertKey = 'kfshort70_'+f.sym;
+  // 80+ popup & bildirim
+  shortCands.forEach(c=>{
+    if(c.score >= 80){
+      const alertKey = 'kfshort80_'+c.sym;
       const last = parseInt(localStorage.getItem(alertKey)||'0');
       if(Date.now()-last > 1800000){
         localStorage.setItem(alertKey, String(Date.now()));
-        sendNotif('🔴 SHORT FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'short70-'+f.sym);
+        sendNotif('🔴 GÜÇLÜ SHORT: '+c.sym.replace('USDT','')+' — '+c.score+'/100', c.kriterler.join(' · '), 'short80-'+c.sym);
+        try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=440;g.gain.value=0.35;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.8);o.stop(a.currentTime+0.8);}catch(e){}
       }
     }
 
-    // 55+ poz listesine ekle
-    if(score>=55 && isShortCand){
-      const pr = parseFloat(futCoin.price)||0;
+    // 60+ poz listesine ekle
+    if(c.score >= 60){
+      const pr = parseFloat(c.price)||0;
       const sigTime = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
-      const exIdx = flashShortOppHistory.findIndex(x=>x.sym===f.sym);
+      const exIdx = flashShortOppHistory.findIndex(x=>x.sym===c.sym);
       if(exIdx>=0){
         const ex = flashShortOppHistory[exIdx];
         ex.sig3 = ex.sig2||null;
-        ex.sig2 = {price:pr, score, time:sigTime};
+        ex.sig2 = {price:pr, score:c.score, time:sigTime};
         ex.lastTime = Date.now();
       } else {
-        flashShortOppHistory.unshift({sym:f.sym, sig1:{price:pr,score,time:sigTime}, sig2:null, sig3:null, lastTime:Date.now()});
+        flashShortOppHistory.unshift({sym:c.sym, sig1:{price:pr,score:c.score,time:sigTime}, sig2:null, sig3:null, lastTime:Date.now()});
         flashShortOppHistory = flashShortOppHistory.slice(0,10);
       }
       renderShortLast10();
       saveToGist();
     }
-
-    return {...f, score, futCoin, kriterler, isShortCand};
-  }).filter(Boolean).filter(c=>c.isShortCand).sort((a,b)=>b.score-a.score).slice(0,10);
+  });
 
   if(!shortCands.length){
-    grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Değişim izleniyor...</div>';
+    grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Şu an 60+ skorlu short adayı yok</div>';
     return;
   }
   if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
   grid.style.gridTemplateColumns = 'repeat(5,1fr)';
-  grid.innerHTML = shortCands.slice(0,10).map(c=>{
+  grid.innerHTML = shortCands.map(c=>{
     const s = c.score;
-    const bg = s>=80?'rgba(255,71,87,.22)':s>=50?'rgba(255,71,87,.10)':'rgba(255,71,87,.04)';
-    const border = s>=80?'var(--red)':s>=50?'rgba(255,71,87,.5)':'rgba(255,71,87,.2)';
-    const chPct = parseFloat(c.chPct)||0;
-    const topKrit = c.kriterler.slice(0,2).join(' ');
+    const bg = s>=80?'rgba(255,71,87,.22)':s>=60?'rgba(255,71,87,.10)':'rgba(255,71,87,.04)';
+    const border = s>=80?'var(--red)':s>=60?'rgba(255,71,87,.5)':'rgba(255,71,87,.2)';
+    const chPct = parseFloat(c.ch)||0;
+    const topKrit = c.kriterler.slice(0,2).join(' · ');
     return `<div onclick="showDetail('${c.sym}')" style="background:${bg};border:1.5px solid ${border};border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer">
       <div style="font-size:11px;font-weight:900;margin-bottom:2px">${c.sym.replace('USDT','')}</div>
-      <div style="font-size:22px;font-weight:900;color:${s>=80?'var(--red)':s>=50?'#f59e0b':'var(--text2)'};line-height:1.1">${s}</div>
+      <div style="font-size:22px;font-weight:900;color:${s>=80?'var(--red)':'#f59e0b'};line-height:1.1">${s}</div>
       <div style="font-size:8px;color:var(--text2);margin-bottom:2px">/100</div>
-      <div style="font-size:9px;color:${chPct<0?'var(--red)':'var(--green)'}">${chPct>=0?'+':''}${chPct}%</div>
-      ${topKrit?`<div style="font-size:7px;color:var(--text2);margin-top:2px">${topKrit}</div>`:''}
+      <div style="font-size:9px;color:${chPct<0?'var(--red)':'var(--green)'}">${chPct>=0?'+':''}${chPct.toFixed(1)}%</div>
+      ${topKrit?`<div style="font-size:7px;color:var(--text2);margin-top:2px;line-height:1.3">${topKrit}</div>`:''}
+      ${s>=80?'<div style="font-size:7px;color:var(--red);font-weight:800;margin-top:2px">🔴 GÜÇLÜ</div>':''}
     </div>`;
   }).join('');
 }
