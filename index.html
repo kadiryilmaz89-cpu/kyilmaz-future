@@ -487,14 +487,14 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
 <div style="background:var(--bg1);border:1px solid rgba(0,212,161,.3);border-radius:12px;padding:12px;margin-bottom:12px">
   <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--green)">🚀 Fırsattan Verilen Pozisyonlar</div>
   <!-- Başlık satırı -->
-  <div style="display:grid;grid-template-columns:55px 35px 70px 55px 55px 55px 1fr;align-items:center;gap:4px;padding:3px 6px;font-size:9px;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:4px">
+  <div style="display:grid;grid-template-columns:50px 1fr 1fr 1fr 45px 45px 80px;align-items:center;gap:4px;padding:3px 8px;font-size:9px;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:4px">
     <div>Coin</div>
-    <div>Puan</div>
-    <div>Giriş</div>
-    <div>Şuan%</div>
-    <div>1h Ort.</div>
-    <div>4h Ort.</div>
-    <div>Mumlar</div>
+    <div style="text-align:center">1. Sinyal</div>
+    <div style="text-align:center">2. Sinyal</div>
+    <div style="text-align:center">3. Sinyal</div>
+    <div style="text-align:center">1h Ort.</div>
+    <div style="text-align:center">4h Ort.</div>
+    <div style="text-align:right">Mumlar</div>
   </div>
   <div id="last10Grid" style="display:flex;flex-direction:column;gap:3px">
     <div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>
@@ -1819,22 +1819,30 @@ function renderLongOpportunities(){
         sendNotif('🚀 LONG FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'long80-'+f.sym);
       }
     }
-    // 55+ puan → fırsat listesine ekle
+    // 55+ puan -> firsat listesine ekle
     if(score>=55 && abovePrevClose){
-      const alertKey = 'kfopp55_'+f.sym;
-      const last = parseInt(localStorage.getItem(alertKey)||'0');
-      if(Date.now()-last > 900000){ // 15 dakika aralık
-        localStorage.setItem(alertKey, String(Date.now()));
-        const pr = parseFloat(futCoin.price)||0;
-        // Aynı coin zaten varsa güncelle, yoksa ekle
-        const exIdx = flashOppHistory.findIndex(x=>x.sym===f.sym);
-        const oppEntry = {sym:f.sym, score, entryPrice:pr, entryTime:Date.now(), kriterler};
-        if(exIdx>=0) flashOppHistory.splice(exIdx,1);
-        flashOppHistory.unshift(oppEntry);
+      const pr = parseFloat(futCoin.price)||0;
+      const sigTime = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+      const exIdx = flashOppHistory.findIndex(x=>x.sym===f.sym);
+      if(exIdx>=0){
+        const ex = flashOppHistory[exIdx];
+        // 2. sinyali 3.'ye kaydir, yeni sinyali 2.'ye yaz
+        ex.sig3 = ex.sig2 || null;
+        ex.sig2 = {price:pr, score, time:sigTime};
+        ex.lastTime = Date.now();
+      } else {
+        // Ilk sinyal
+        flashOppHistory.unshift({
+          sym: f.sym,
+          sig1: {price:pr, score, time:sigTime},
+          sig2: null,
+          sig3: null,
+          lastTime: Date.now()
+        });
         flashOppHistory = flashOppHistory.slice(0,10);
-        renderLast10Signals();
-        saveToGist();
       }
+      renderLast10Signals();
+      saveToGist();
     }
 
     return { ...f, score, futCoin, kriterler, abovePrevClose };
@@ -3742,61 +3750,63 @@ function renderLast10Signals(){
   const el = $('last10Grid');
   if(!el) return;
 
-  // vpDegisim yerine flashOppHistory kullan
   const pozlar = flashOppHistory.slice(0,10);
   if(!pozlar.length){
     el.innerHTML = '<div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>';
     return;
   }
 
-  const items = pozlar.map(p=>{
-    const futCoin = allFutures.find(x=>x.sym===p.sym) || {sym:p.sym, price:p.entryPrice};
-    const curPrice = parseFloat(futCoin.price||p.entryPrice)||0;
-    const pctFromEntry = p.entryPrice>0?((curPrice-p.entryPrice)/p.entryPrice*100):0;
+  const fmt2 = (p,d)=>p>0?'$'+p.toLocaleString('tr-TR',{minimumFractionDigits:d,maximumFractionDigits:d}):'--';
+  const d = (p)=>p>100?2:p>1?4:6;
 
-    // 1h ortalama
+  const items = pozlar.map(p=>{
+    const futCoin = allFutures.find(x=>x.sym===p.sym)||{sym:p.sym,price:0};
+    const curPrice = parseFloat(futCoin.price)||0;
+
+    // 1h ve 4h ortalama
     const kl1hS = klinesMap1h[p.sym];
     const kline1hClS = (window._kline1hClose||{})[p.sym];
-    const avg1hS = kline1hClS || (kl1hS&&kl1hS.length>=1 ? kl1hS[kl1hS.length-1].c : 0);
-    const pctFrom1h = avg1hS>0?((curPrice-avg1hS)/avg1hS*100):null;
+    const avg1hS = kline1hClS||(kl1hS&&kl1hS.length>=1?kl1hS[kl1hS.length-1].c:0);
+    const avg4hS = kl1hS&&kl1hS.length>=4?kl1hS.slice(-4).reduce((a,k)=>a+k.c,0)/4:0;
+    const pct1h = avg1hS>0?((curPrice-avg1hS)/avg1hS*100):null;
+    const pct4h = avg4hS>0?((curPrice-avg4hS)/avg4hS*100):null;
 
-    // 4h ortalama
-    const kl1hFor4hS = klinesMap1h[p.sym];
-    const avg4hS = kl1hFor4hS&&kl1hFor4hS.length>=4 ? kl1hFor4hS.slice(-4).reduce((a,k)=>a+k.c,0)/4 : 0;
-    const pctFrom4h = avg4hS>0?((curPrice-avg4hS)/avg4hS*100):null;
-
-    // Son 4 mum rengi — _kline15m veya klinesMap15m
+    // Mum renkleri
     const kl15S = klinesMap15m[p.sym];
     const kline15mS = (window._kline15m||{})[p.sym];
     let mumlar = '';
-    if(kl15S && kl15S.length>=4){
-      mumlar = kl15S.slice(-4).map(k=>k.c>k.o?'🟢':'🔴').join('');
-    } else if(kline15mS){
-      // _kline15m'den son mumun rengi + önceki
-      const curGreen = kline15mS.curClose > kline15mS.curOpen;
-      const prevGreen = kline15mS.prevClose > kline15mS.prevLow;
-      mumlar = (prevGreen?'🟢':'🔴') + (curGreen?'🟢':'🔴');
-    }
+    if(kl15S&&kl15S.length>=4) mumlar = kl15S.slice(-4).map(k=>k.c>k.o?'🟢':'🔴').join('');
+    else if(kline15mS?.mumRenkleri) mumlar = kline15mS.mumRenkleri.join('');
 
-    const d = curPrice>100?2:6;
-    const pctCol = pctFromEntry>=0?'var(--green)':'var(--red)';
-    const col1h = pctFrom1h!==null?(pctFrom1h>=0?'var(--green)':'var(--red)'):'var(--text2)';
-    const col4h = pctFrom4h!==null?(pctFrom4h>=0?'var(--green)':'var(--red)'):'var(--text2)';
-    const scoreCol = p.score>=80?'var(--green)':'var(--yellow)';
+    const sigBox = (sig)=>{
+      if(!sig) return '<div style="background:rgba(255,255,255,.03);border-radius:6px;padding:4px;text-align:center;font-size:9px;color:var(--text2)">--</div>';
+      const sc = sig.score>=80?'var(--green)':sig.score>=55?'#f59e0b':'var(--text2)';
+      return `<div style="background:var(--bg2);border-radius:6px;padding:4px;text-align:center">
+        <div style="font-size:9px;color:${sc};font-weight:800">${sig.score}p</div>
+        <div style="font-size:8px;color:var(--text2)">${fmt2(sig.price,d(sig.price))}</div>
+        <div style="font-size:8px;color:var(--text2)">${sig.time||''}</div>
+      </div>`;
+    };
 
-    return `<div onclick="showDetail('${p.sym}')" style="display:grid;grid-template-columns:55px 35px 70px 55px 55px 55px 1fr;align-items:center;gap:4px;padding:5px 6px;background:var(--bg2);border-radius:7px;cursor:pointer;font-size:11px">
-      <div style="font-weight:900">${p.sym.replace('USDT','')}</div>
-      <div style="font-weight:800;color:${scoreCol}">${p.score}</div>
-      <div style="color:var(--text2)">$${fmt(p.entryPrice,d)}</div>
-      <div style="color:${pctCol};font-weight:700">${pctFromEntry>=0?'+':''}${pctFromEntry?.toFixed(1)}%</div>
-      <div style="color:${col1h}">${pctFrom1h!==null?(pctFrom1h>=0?'+':'')+pctFrom1h?.toFixed(1)+'%':'--'}</div>
-      <div style="color:${col4h}">${pctFrom4h!==null?(pctFrom4h>=0?'+':'')+pctFrom4h?.toFixed(1)+'%':'--'}</div>
-      <div style="font-size:10px">${mumlar}</div>
+    const col1h = pct1h!==null?(pct1h>=0?'var(--green)':'var(--red)'):'var(--text2)';
+    const col4h = pct4h!==null?(pct4h>=0?'var(--green)':'var(--red)'):'var(--text2)';
+
+    return `<div onclick="showDetail('${p.sym}')" style="background:var(--bg2);border-radius:8px;padding:6px 8px;cursor:pointer;margin-bottom:2px">
+      <div style="display:grid;grid-template-columns:50px 1fr 1fr 1fr 45px 45px 80px;align-items:center;gap:4px;font-size:11px">
+        <div style="font-weight:900">${p.sym.replace('USDT','')}</div>
+        ${sigBox(p.sig1)}
+        ${sigBox(p.sig2)}
+        ${sigBox(p.sig3)}
+        <div style="text-align:center;font-size:10px;color:${col1h}">${pct1h!==null?(pct1h>=0?'+':'')+pct1h.toFixed(1)+'%':'--'}</div>
+        <div style="text-align:center;font-size:10px;color:${col4h}">${pct4h!==null?(pct4h>=0?'+':'')+pct4h.toFixed(1)+'%':'--'}</div>
+        <div style="font-size:10px;text-align:right">${mumlar}</div>
+      </div>
     </div>`;
   }).join('');
 
   el.innerHTML = items;
 }
+
 
 function renderFlashHistory(){
   const el = $('flashHistoryGrid');
