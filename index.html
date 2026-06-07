@@ -1633,9 +1633,10 @@ function calcLongScore(f, flashEntry){
   let score = 0;
   const sym = f.sym;
   const isUp = flashEntry && flashEntry.up;
-  const curPrice = parseFloat(f.price||f.lastPrice)||0;
+  const tickerData = (window._tickerCache||{})[sym]||{};
+  const curPrice = parseFloat(f.price||f.lastPrice||tickerData.price)||0;
 
-  // 1. Hareket puanı - sadece yükselende (20 puan)
+  // 1. Hareket puanı (20 puan)
   if(isUp && parseFloat(flashEntry.chPct)>=1) score += 20;
   else if(isUp && parseFloat(flashEntry.chPct)>=0.5) score += 10;
 
@@ -1649,22 +1650,19 @@ function calcLongScore(f, flashEntry){
     else if(volRatio >= 1.15) score += 12;
   }
 
-  // 3. Son 3 mum 15m yeşil + güçlü kırılım (15+20 puan)
+  // 3. Mum analizi (20 puan)
   const kl15 = klinesMap15m[sym];
   if(kl15 && kl15.length>=2){
     const sonMum = kl15[kl15.length-1];
     const oncekiMum = kl15[kl15.length-2];
     const yesil = kl15.slice(-3).filter(k=>k.c>k.o).length;
-    // Güçlü kırılım: şu an yeşil + önceki mumun üstünde + hacim arttı
     const gucluKirilim = sonMum.c>sonMum.o && curPrice>oncekiMum.c && sonMum.v>oncekiMum.v;
     if(gucluKirilim) score += 20;
-    else if(yesil===3) score += 15;
-    else if(yesil===2) score += 7;
+    else if(yesil>=2) score += 10;
   }
 
-  // 4. 5dk trend — son 10 poll fiyatı sürekli yükseliyor mu (15 puan)
-  if(!window._price5m) window._price5m={};
-  const prices5m = window._price5m[sym]||[];
+  // 4. 5dk trend (15 puan)
+  const prices5m = (window._price5m||{})[sym]||[];
   if(prices5m.length>=5){
     const ilk = prices5m[0];
     const son = prices5m[prices5m.length-1];
@@ -1675,13 +1673,13 @@ function calcLongScore(f, flashEntry){
     else if(trend5m>=0.2) score += 5;
   }
 
-  // 5. RSI (15 puan) — düşük RSI bonus, yüksek RSI ceza
+  // 5. RSI (15 puan)
   if(f.rsi){
     if(f.rsi < 35) score += 15;
     else if(f.rsi < 45) score += 10;
     else if(f.rsi < 55) score += 5;
-    else if(f.rsi > 80) score -= 10; // aşırı alım ceza
-    else if(f.rsi > 70) score -= 5;  // yüksek RSI hafif ceza
+    else if(f.rsi > 80) score -= 10;
+    else if(f.rsi > 70) score -= 5;
   }
 
   // 6. Funding negatif (10 puan)
@@ -1691,33 +1689,44 @@ function calcLongScore(f, flashEntry){
     else if(fr.rate < 0) score += 5;
   }
 
-  // 7. İlk sinyal önceki mumun üstündeyse bonus (20 puan)
+  // 7. Sinyal fiyatinin ustundeyse bonus (20 puan)
   const histEntry = flashHistory.find(x=>x.sym===sym);
-  let aboveSigPrice = false;
   if(histEntry){
     const sigPriceH = histEntry.signalPrice||histEntry.price||0;
-    if(sigPriceH>0 && curPrice>sigPriceH){
-      aboveSigPrice = true;
-      score += 20;
-    }
+    if(sigPriceH>0 && curPrice>sigPriceH) score += 20;
   }
 
-  // Düşen coin ise max 15 puanla sınırla
+  // 8. Madde 2: 4h ortalama kirilimi bonus (15 puan)
+  const kl1hFor4h = klinesMap1h[sym];
+  if(kl1hFor4h && kl1hFor4h.length>=4){
+    const avg4h = kl1hFor4h.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+    if(avg4h>0 && curPrice>avg4h) score += 15;
+  }
+
+  // 9. Madde 6: Hacim trendi bonusu (15 puan)
+  const volHist = (window._volHistory||{})[sym]||[];
+  if(volHist.length>=4){
+    const son3vol = volHist.slice(-3);
+    const artiyor = son3vol[0]<son3vol[1] && son3vol[1]<son3vol[2];
+    const volAvg = volHist.slice(0,-3).reduce((a,b)=>a+b,0)/Math.max(volHist.length-3,1);
+    if(artiyor && volAvg>0 && son3vol[2]>volAvg*1.5) score += 15;
+    else if(artiyor) score += 7;
+  }
+
+  // Dusen coin max 15 puan
   if(!isUp) score = Math.min(score, 15);
 
-  // 4h trend aşağıysa puan yüzde 50 kes
+  // 4h trend asagiysa puan yuzde 50 kes
   const kl4h = f.klines4h;
   if(kl4h && kl4h.length>=3){
-    const son3 = kl4h.slice(-3);
-    const hepKirmizi = son3.every(k=>k.c<k.o);
+    const hepKirmizi = kl4h.slice(-3).every(k=>k.c<k.o);
     if(hepKirmizi) score = Math.floor(score*0.5);
   }
 
-  // 24h büyük düşüş varsa puan kes
-  const ch24 = parseFloat(f.ch||f.priceChangePercent||0);
-  if(ch24 < -10) score = Math.floor(score*0.3); // -10% altı → %30'a düşür
-  else if(ch24 < -5) score = Math.floor(score*0.6); // -5% altı → %60'a düşür
-
+  // 24h buyuk dusus cezasi
+  const ch24 = parseFloat(f.ch||f.priceChangePercent||tickerData.ch24||0);
+  if(ch24 < -10) score = Math.floor(score*0.3);
+  else if(ch24 < -5) score = Math.floor(score*0.6);
   return Math.min(score, 100);
 }
 
@@ -1763,9 +1772,10 @@ function renderLongOpportunities(){
     const abovePrevLow = prevLow>0 ? curPrice>prevLow : true;
     const abovePrevClose15 = prevClose15>0 ? curPrice>prevClose15 : true;
 
-    // Son 3 mum kirmizi mi? (kline15m gelmediyse klinesMap15m kullan)
-    const son3Arr = kl15c&&kl15c.length>=3 ? kl15c.slice(-3) : null;
-    const son3Kirmizi = son3Arr ? son3Arr.every(k=>k.c<k.o) : false;
+    // Son 3 mumdan en az 2'si yeşil mi? (madde 5)
+    const son3ArrF = kl15c&&kl15c.length>=3 ? kl15c.slice(-3) : null;
+    const yesilSayisi = son3ArrF ? son3ArrF.filter(k=>k.c>k.o).length : 2; // veri yoksa geç
+    const son3Kirmizi = yesilSayisi < 2; // 2'den az yeşil → düşene al
 
     // Son 1 saat kapanisinden yuksek mi?
     const kline1hClose = (window._kline1hClose||{})[f.sym];
@@ -3542,15 +3552,26 @@ async function flashPoll(){
       if(!t.symbol.endsWith('USDT')) return;
       const sym = t.symbol;
       const price = parseFloat(t.lastPrice);
+      const vol = parseFloat(t.quoteVolume||0);
       const prev = _flashPrevPrices[sym];
+
+      // Hacim trendi kaydet (madde 6)
+      if(!window._volHistory) window._volHistory={};
+      if(!window._volHistory[sym]) window._volHistory[sym]=[];
+      window._volHistory[sym].push(vol);
+      if(window._volHistory[sym].length>10) window._volHistory[sym].shift();
+
+      // Ticker verisini kaydet (madde 4 - tarama yapılmadan puan hesaplama için)
+      if(!window._tickerCache) window._tickerCache={};
+      window._tickerCache[sym] = {price, vol, ch24:parseFloat(t.priceChangePercent||0)};
 
       if(prev && prev > 0){
         const ch = ((price - prev) / prev) * 100;
         if(Math.abs(ch) >= 1){
           const f = allFutures.find(x=>x.sym===sym);
-          // Sinyal referans fiyatı: önceki mumun kapanışı (15m)
           const kl15 = klinesMap15m&&klinesMap15m[sym];
-          const prevClose = (kl15&&kl15.length>=2) ? kl15[kl15.length-2].c : prev;
+          const kline15mCache = (window._kline15m||{})[sym];
+          const prevClose = kline15mCache?.prevClose || (kl15&&kl15.length>=2 ? kl15[kl15.length-2].c : prev);
           const entry = {sym, price, signalPrice:prevClose, signalTime:Date.now(), chPct:ch.toFixed(2), up:ch>0, time:new Date().toLocaleTimeString('tr-TR'), sig:(f&&f.sig)||'BEKLE', conf:(f&&f.confidence)||0};
           const ex = flashData.findIndex(x=>x.sym===sym);
           if(ex>=0){ flashData.splice(ex,1); flashData.unshift(entry); } else { flashData.unshift(entry); }
@@ -3558,12 +3579,19 @@ async function flashPoll(){
           const hEx = flashHistory.findIndex(x=>x.sym===sym);
           if(hEx>=0){
             const existing = flashHistory.splice(hEx,1)[0];
-            flashHistory.unshift(Object.assign({},entry,{signalPrice:existing.signalPrice, signalTime:existing.signalTime, firstPrice:existing.firstPrice||existing.price, firstChPct:existing.firstChPct||existing.chPct, firstUp:existing.firstUp!==undefined?existing.firstUp:existing.up}));
+            // Madde 3: Yeşil sinyalde signalPrice güncelle, kırmızıda eski referansı koru
+            const newSignalPrice = ch>0 ? prevClose : (existing.signalPrice||prevClose);
+            flashHistory.unshift(Object.assign({},entry,{
+              signalPrice: newSignalPrice,
+              signalTime: existing.signalTime,
+              firstPrice: existing.firstPrice||existing.price,
+              firstChPct: existing.firstChPct||existing.chPct,
+              firstUp: existing.firstUp!==undefined?existing.firstUp:existing.up
+            }));
           } else {
             flashHistory.unshift(Object.assign({},entry,{firstPrice:price, firstChPct:ch.toFixed(2), firstUp:ch>0}));
           }
           flashHistory = flashHistory.slice(0,20);
-          saveToGist();
           saveToGist();
           fetchKlinesForHistory().then(()=>{ updateFlash(); });
         }
