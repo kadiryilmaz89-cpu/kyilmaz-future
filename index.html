@@ -1217,6 +1217,7 @@ async function startScan(silent=false){
       const oi=oiData.find(x=>x.sym===sym);
       // 1) Patlama Skoru
       const ps=calcPatlamaScore(f,f.klines1d,f.klines4h,f.klines15m,fr,ls,oi,klinesMap1h[sym]);
+      f._ps = ps; // cache — showDetail'de hızlı oku
       if(ps.totalScore>=65) openVirtualPosition(f,ps.totalScore,f.sig==='SHORT'?'SHORT':'LONG','patlama');
       // 2) Futures Sinyali (mevcut güven skoru)
       if(f.sig==='LONG'&&f.confidence>=58) openVirtualPosition(f,f.confidence,'LONG','futures');
@@ -2560,6 +2561,7 @@ function renderPatlamaList() {
     const oi = oiData.find(x => x.sym === sym);
     const kl1h = klinesMap1h[sym] || null;
     const score = calcPatlamaScore(f, kl1d, kl4h, kl15, fr, ls, oi, kl1h);
+    f._ps = score; // cache
     if(score.totalScore >= 35) {
       // Tüm TF'lerde sinyal kontrol et
       const conf4h=calcConfidenceScore({symbol:sym,priceChangePercent:f.ch,lastPrice:f.price,quoteVolume:f.vol24},kl4h,fr,ls,'4h',kl1h);
@@ -2604,6 +2606,7 @@ function renderPatlamaList() {
     const ls=lsData.find(x=>x.sym===sym);
     const oi=oiData.find(x=>x.sym===sym);
     const ds=calcDususScore(f,f.klines1d,f.klines4h,fr,ls,oi);
+    f._ds = ds; // cache
     if(ds.totalScore>=35){
       // Tüm TF'lerde calcConfidenceScore çalıştır
       const kl4h=f.klines4h||klinesMap4h[sym];
@@ -3352,7 +3355,8 @@ function showDetail(sym){
   const f=allFutures.find(x=>x.sym===sym);if(!f)return;
   const col=f.sig==='LONG'?'var(--green)':f.sig==='SHORT'?'var(--red)':'var(--yellow)';
   const fr=fundingData.find(x=>x.sym===sym),ls=lsData.find(x=>x.sym===sym);
-  const ps=calcPatlamaScore(f,f.klines1d,f.klines4h,f.klines15m,fr,ls,oiData.find(x=>x.sym===sym));
+  // Cache'den oku — yeniden hesaplama yapma (hız için)
+  const ps = f._ps || calcPatlamaScore(f,f.klines1d,f.klines4h,f.klines15m,fr,ls,oiData.find(x=>x.sym===sym));
   const ch=parseFloat(f.ch)||0;
   const d=f.price>100?2:6;
   const atr=f.atr||f.price*.01;
@@ -3387,7 +3391,7 @@ function showDetail(sym){
     :`RSI normal (${f.rsi}). Aşırı alım yok, trend devam edebilir.`;
 
   // Düşüş skoru da hesapla
-  const ds=calcDususScore(f,f.klines1d,f.klines4h,fr,ls,oiData.find(x=>x.sym===sym));
+  const ds = f._ds || calcDususScore(f,f.klines1d,f.klines4h,fr,ls,oiData.find(x=>x.sym===sym));
   const isShortCandidate=ds.totalScore>=55;
 
   // Giriş bölgesi
