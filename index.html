@@ -4060,24 +4060,20 @@ function renderFlashHistory(){
     const curPrevClose = kline15mCur?.prevClose || (kl15Cur&&kl15Cur.length>=2?kl15Cur[kl15Cur.length-2].c:0) || sigPrice;
     const pctFromPrevClose = curPrevClose>0?((curPrice-curPrevClose)/curPrevClose*100):0;
 
-    // Önceki mum kapanışına göre üstünde/altında
-    // 1h ortalaması vs 4h ortalaması karşılaştırması
-    const kl1hRFH = klinesMap1h[f.sym];
-    const kline1hCloseRFH = (window._kline1hClose||{})[f.sym];
-    let avg1h = 0, avg4h = 0;
-    if(kl1hRFH && kl1hRFH.length>=4){
-      avg1h = kl1hRFH.slice(-1)[0]?.c || 0;
-      avg4h = kl1hRFH.slice(-4).reduce((a,k)=>a+k.c,0)/4;
-    } else if(kline1hCloseRFH){
-      avg1h = kline1hCloseRFH;
+    // Yükselen/düşen belirleme:
+    // Şu anki fiyat hem 1h hem 4h ortalamasının üstündeyse → Yükselen
+    // Birinden bile altındaysa → Düşen
+    const kl1hG = klinesMap1h[f.sym];
+    let gAvg1h = 0, gAvg4h = 0;
+    if(kl1hG && kl1hG.length>=4){
+      gAvg1h = kl1hG.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(kl1hG.length,10);
+      gAvg4h = kl1hG.slice(-4).reduce((a,k)=>a+k.c,0)/4;
     }
-
-    // Yükselen/düşen belirleme
     let isAbove;
-    if(avg1h>0 && avg4h>0){
-      isAbove = avg1h > avg4h;
+    if(gAvg1h>0 && gAvg4h>0){
+      isAbove = curPrice > gAvg1h && curPrice > gAvg4h;
     } else {
-      isAbove = pctFromPrevClose>=0;
+      isAbove = pctFromPrevClose >= 0;
     }
     const ago = Math.round((now-(f.signalTime||now))/60000);
     const sigTime = f.signalTime?new Date(f.signalTime).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}):'';
