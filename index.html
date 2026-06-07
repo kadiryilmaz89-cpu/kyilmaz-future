@@ -3722,7 +3722,24 @@ function renderFlashHistory(){
     const pctFromPrevClose = sigPrice>0?((curPrice-sigPrice)/sigPrice*100):0;
 
     // Önceki mum kapanışına göre üstünde/altında
-    const isAbove = pctFromPrevClose>=0;
+    // 1h ortalaması vs 4h ortalaması karşılaştırması
+    const kl1hRFH = klinesMap1h[f.sym];
+    const kline1hCloseRFH = (window._kline1hClose||{})[f.sym];
+    let avg1h = 0, avg4h = 0;
+    if(kl1hRFH && kl1hRFH.length>=4){
+      avg1h = kl1hRFH.slice(-1)[0]?.c || 0;
+      avg4h = kl1hRFH.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+    } else if(kline1hCloseRFH){
+      avg1h = kline1hCloseRFH;
+    }
+
+    // Yükselen/düşen belirleme
+    let isAbove;
+    if(avg1h>0 && avg4h>0){
+      isAbove = avg1h > avg4h;
+    } else {
+      isAbove = pctFromPrevClose>=0;
+    }
     const ago = Math.round((now-(f.signalTime||now))/60000);
     const sigTime = f.signalTime?new Date(f.signalTime).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}):'';
     return {f, firstChPct, pctFromSig, pctFromPrevClose, isAbove, ago, sigTime};
