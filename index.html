@@ -3352,7 +3352,18 @@ function renderHeatmap(){
 
 // ── DETAIL POPUP ──
 function showDetail(sym){
-  const f=allFutures.find(x=>x.sym===sym);if(!f)return;
+  let f=allFutures.find(x=>x.sym===sym);
+  if(!f){
+    // allFutures'ta yoksa flashHistory'den temel obje oluştur
+    const fh=[...flashHistory,...(flashOppHistory||[])].find(x=>x.sym===sym)||{};
+    const tc=(window._tickerCache||{})[sym]||{};
+    const pr=parseFloat(tc.price||fh.price||fh.signalPrice)||0;
+    if(!pr){showTicker('⚠️ '+sym.replace('USDT','')+' verisi yok — önce Tara butonuna bas');return;}
+    f={sym,price:pr,ch:(fh.chPct||'0'),vol24:0,sig:'BEKLE',confidence:50,rsi:null,
+       atr:pr*0.015,klines4h:null,klines1d:null,
+       klines15m:klinesMap15m[sym]||null,klines1h:klinesMap1h[sym]||null,
+       scores:{},cross:null,boll:null,candle:null,sr:null,fg:null,macd:null,_ps:null,_ds:null};
+  }
   const col=f.sig==='LONG'?'var(--green)':f.sig==='SHORT'?'var(--red)':'var(--yellow)';
   const fr=fundingData.find(x=>x.sym===sym),ls=lsData.find(x=>x.sym===sym);
   // Cache'den oku — yeniden hesaplama yapma (hız için)
