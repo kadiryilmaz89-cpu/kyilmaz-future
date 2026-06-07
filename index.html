@@ -3668,7 +3668,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 async function fetchKlinesForHistory(){
-  const syms = [...new Set(flashHistory.map(f=>f.sym))].slice(0,20);
+  const syms = [...new Set([
+    ...flashHistory.map(f=>f.sym),
+    ...vpDegisim.filter(p=>p.status==='open').map(p=>p.sym)
+  ])].slice(0,25);
   if(!syms.length) return;
   await Promise.all(syms.map(async sym=>{
     try{
@@ -3755,11 +3758,17 @@ function renderLast10Signals(){
     const avg4hS = kl1hFor4hS&&kl1hFor4hS.length>=4 ? kl1hFor4hS.slice(-4).reduce((a,k)=>a+k.c,0)/4 : 0;
     const pctFrom4h = avg4hS>0?((curPrice-avg4hS)/avg4hS*100):null;
 
-    // Son 4 mum rengi
+    // Son 4 mum rengi — _kline15m veya klinesMap15m
     const kl15S = klinesMap15m[p.sym];
+    const kline15mS = (window._kline15m||{})[p.sym];
     let mumlar = '';
     if(kl15S && kl15S.length>=4){
       mumlar = kl15S.slice(-4).map(k=>k.c>k.o?'🟢':'🔴').join('');
+    } else if(kline15mS){
+      // _kline15m'den son mumun rengi + önceki
+      const curGreen = kline15mS.curClose > kline15mS.curOpen;
+      const prevGreen = kline15mS.prevClose > kline15mS.prevLow;
+      mumlar = (prevGreen?'🟢':'🔴') + (curGreen?'🟢':'🔴');
     }
 
     const d = curPrice>100?2:6;
