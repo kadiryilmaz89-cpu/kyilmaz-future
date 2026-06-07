@@ -5005,11 +5005,36 @@ function calcMasterSignal() {
 
     const patScore = f.ps?.totalScore || 0;
     const anaOnay = f.ps?.anaOnay || 0;
+
+    // ── 1h ve 4h ortalama kırılım kontrolü (LONG) ──
+    const kl1hL = klinesMap1h[sym];
+    let avg1hL=0, avg4hL=0, prev1hL=0, prev4hL=0;
+    if(kl1hL && kl1hL.length>=5){
+      avg1hL = kl1hL.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(kl1hL.length,10);
+      avg4hL = kl1hL.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+      // Bir önceki mumdaki ortalama (kırılım tespiti için)
+      prev1hL = kl1hL.slice(-11,-1).reduce((a,k)=>a+k.c,0)/Math.min(kl1hL.length-1,10);
+      prev4hL = kl1hL.slice(-5,-1).reduce((a,k)=>a+k.c,0)/4;
+    }
+    const prevPrice = kl1hL?.length>=2 ? kl1hL[kl1hL.length-2].c : price;
+    const kirilim1h = avg1hL>0 && prevPrice < prev1hL && price > avg1hL; // önceki mum altında, şimdi üstünde
+    const kirilim4h = avg4hL>0 && prevPrice < prev4hL && price > avg4hL;
+    const ustunde1h = avg1hL>0 && price > avg1hL;
+    const ustunde4h = avg4hL>0 && price > avg4hL;
+    // Kırılım puanı
+    let kirilimW = 0;
+    if(kirilim1h && kirilim4h) kirilimW = 35;       // ikisi birden kırıldı — çok güçlü
+    else if(kirilim1h || kirilim4h) kirilimW = 20;  // biri kırıldı
+    else if(ustunde1h && ustunde4h) kirilimW = 5;   // kırılım yok ama üstünde
+    else if(!ustunde1h && avg1hL>0) kirilimW = -20; // 1h altında — negatif
+    // Kırılım yoksa ve 1h altındaysa eleme
+    if(avg1hL>0 && !ustunde1h) return;
+
     const futW = Math.min((confidence-50)/50*30, 30);
     const patW = Math.min(patScore/100*50, 50);
     const btcW = btcCh>1?15:btcCh>-1?10:5;
     const konW = konsolidasyon?5:0;
-    const masterScore = Math.round(patW+futW+btcW+konW);
+    const masterScore = Math.round(patW+futW+btcW+konW+kirilimW);
 
     const fr=fundingData.find(x=>x.sym===sym);
     const ls=lsData.find(x=>x.sym===sym);
@@ -5020,6 +5045,9 @@ function calcMasterSignal() {
       sig==='LONG'?`🟢 Futures LONG %${confidence}`:`⚠️ Futures BEKLE — Güçlü patlama trendi`,
       `₿ BTC ${btcCh>=0?'+':''}${btcCh?.toFixed(1)}%`
     ];
+    if(kirilim1h && kirilim4h) reasons.push('🚀 1h+4h ortalama kırıldı — Güçlü');
+    else if(kirilim1h) reasons.push('📈 1h ortalama yukarı kırıldı');
+    else if(kirilim4h) reasons.push('📈 4h ortalama yukarı kırıldı');
     if(mumAciklama) reasons.push(`🕯 ${mumAciklama}`);
     if(konsolidasyon) reasons.push('✅ Konsolidasyon');
     if(fr&&fr.rate<-0.02) reasons.push(`💰 Funding ${fr.rate?.toFixed(4)}%`);
@@ -5049,18 +5077,39 @@ function calcMasterSignal() {
     const dusScore = f.ds?.totalScore || 0;
     const anaOnay = f.ds?.anaOnay || 0;
 
+    // ── 1h ve 4h ortalama kırılım kontrolü (SHORT) ──
+    const kl1hS2 = klinesMap1h[sym];
+    let avg1hS2=0, avg4hS2=0, prev1hS2=0, prev4hS2=0;
+    if(kl1hS2 && kl1hS2.length>=5){
+      avg1hS2 = kl1hS2.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(kl1hS2.length,10);
+      avg4hS2 = kl1hS2.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+      prev1hS2 = kl1hS2.slice(-11,-1).reduce((a,k)=>a+k.c,0)/Math.min(kl1hS2.length-1,10);
+      prev4hS2 = kl1hS2.slice(-5,-1).reduce((a,k)=>a+k.c,0)/4;
+    }
+    const prevPriceS = kl1hS2?.length>=2 ? kl1hS2[kl1hS2.length-2].c : price;
+    const kirilim1hS = avg1hS2>0 && prevPriceS > prev1hS2 && price < avg1hS2; // önceki mum üstünde, şimdi altında
+    const kirilim4hS = avg4hS2>0 && prevPriceS > prev4hS2 && price < avg4hS2;
+    const altinda1h = avg1hS2>0 && price < avg1hS2;
+    const altinda4h = avg4hS2>0 && price < avg4hS2;
+    // Kırılım puanı
+    let kirilimWS = 0;
+    if(kirilim1hS && kirilim4hS) kirilimWS = 35;
+    else if(kirilim1hS || kirilim4hS) kirilimWS = 20;
+    else if(altinda1h && altinda4h) kirilimWS = 5;
+    else if(!altinda1h && avg1hS2>0) kirilimWS = -20;
+    // 1h üstündeyse eleme
+    if(avg1hS2>0 && !altinda1h) return;
+
     const futW = sig==='SHORT' ? Math.min((50-confidence)/50*30, 30) : 0;
     const dusW = Math.min(dusScore/100*50, 50);
     const btcW = btcCh<-1?15:btcCh<1?10:5;
-    // E Formülü desteği — bu coin E Formülünde 3+ onay aldıysa bonus
     const eFormulBonus = (() => {
-      // allFutures'dan E Formülü onay sayısını bul (renderEFormulu çalıştıktan sonra)
       const ef = window._eFormulResults?.find?.(x=>x.sym===sym);
       if(ef && ef.onayCount>=4) return 15;
       if(ef && ef.onayCount>=3) return 8;
       return 0;
     })();
-    const masterScore = Math.round(dusW+futW+btcW+eFormulBonus);
+    const masterScore = Math.round(dusW+futW+btcW+eFormulBonus+kirilimWS);
 
     const fr=fundingData.find(x=>x.sym===sym);
     const ls=lsData.find(x=>x.sym===sym);
@@ -5071,6 +5120,9 @@ function calcMasterSignal() {
       sig==='SHORT'?`🔴 Futures SHORT %${confidence}`:`⚠️ Futures ${sig} — Güçlü düşüş trendi`,
       `₿ BTC ${btcCh>=0?'+':''}${btcCh?.toFixed(1)}%`
     ];
+    if(kirilim1hS && kirilim4hS) reasons.push('🔻 1h+4h ortalama aşağı kırıldı — Güçlü');
+    else if(kirilim1hS) reasons.push('📉 1h ortalama aşağı kırıldı');
+    else if(kirilim4hS) reasons.push('📉 4h ortalama aşağı kırıldı');
     if(fr&&fr.rate>0.02) reasons.push(`💰 Funding +${fr.rate?.toFixed(4)}% — Long sıkışması`);
     if(ls&&ls.longPct>65) reasons.push(`🎯 Long %${ls.longPct?.toFixed(0)} — Sıkışma`);
 
