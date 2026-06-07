@@ -441,32 +441,10 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
   </div>
 </div>
 
-<!-- SHORT FIRSAT PANELI -->
-<div style="background:var(--bg1);border:2px solid rgba(255,71,87,.4);border-radius:12px;padding:14px;margin-bottom:12px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
-    <div>
-      <span style="font-size:13px;font-weight:800;color:var(--red)">⚡ Değişime Göre SHORT Fırsatları</span>
-      <span style="font-size:10px;color:var(--text2);margin-left:6px">80+ gir · 50-79 izle · 0-49 geç</span>
-    </div>
-    <span style="font-size:10px;color:var(--text2)" id="shortOppTime">İzleniyor...</span>
-  </div>
-  <div id="shortOppGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">
-    <div class="empty" style="grid-column:1/-1;font-size:11px">Değişim izleniyor...</div>
-  </div>
-</div>
-
 <!-- FIRSAT LONG POZİSYONLARI -->
 <div style="background:var(--bg1);border:1px solid rgba(0,212,161,.3);border-radius:12px;padding:12px;margin-bottom:12px">
   <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--green)">🚀 Fırsattan Verilen LONG Pozisyonlar</div>
   <div id="last10Grid" style="display:flex;flex-direction:column;gap:3px">
-    <div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>
-  </div>
-</div>
-
-<!-- FIRSAT SHORT POZİSYONLARI -->
-<div style="background:var(--bg1);border:1px solid rgba(255,71,87,.3);border-radius:12px;padding:12px;margin-bottom:12px">
-  <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--red)">🔴 Fırsattan Verilen SHORT Pozisyonlar</div>
-  <div id="shortOppGrid2" style="display:flex;flex-direction:column;gap:3px">
     <div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>
   </div>
 </div>
@@ -1913,8 +1891,7 @@ function renderShortOpportunities(){
         flashShortOppHistory.unshift({sym:f.sym, sig1:{price:pr,score,time:sigTime}, sig2:null, sig3:null, lastTime:Date.now()});
         flashShortOppHistory = flashShortOppHistory.slice(0,10);
       }
-      renderShortLast10();
-      saveToGist();
+          saveToGist();
     }
 
     return {...f, score, futCoin, kriterler, isShortCand};
@@ -3731,7 +3708,7 @@ function startWebSocket(){
 
       if(prev10){
         const ch=((price-prev10)/prev10)*100;
-        if(Math.abs(ch)>=0.5){ // 10 saniyede %0.5+
+        if(Math.abs(ch)>=0.3){ // 10 saniyede %0.3+
           const f=allFutures.find(x=>x.sym===sym);
           const ex=flashData.findIndex(x=>x.sym===sym);
           const kl15ws=klinesMap15m&&klinesMap15m[sym];
@@ -3835,7 +3812,7 @@ async function flashPoll(){
 
       if(prev && prev > 0){
         const ch = ((price - prev) / prev) * 100;
-        if(Math.abs(ch) >= 1){
+        if(Math.abs(ch) >= 0.5){
           const f = allFutures.find(x=>x.sym===sym);
           const kl15 = klinesMap15m&&klinesMap15m[sym];
           const kline15mCache = (window._kline15m||{})[sym];
@@ -3902,7 +3879,7 @@ async function flashPoll(){
   } catch(e){}
 }
 // Her 30 saniyede bir çalıştır
-setInterval(flashPoll, 30000);
+setInterval(flashPoll, 15000);
 // Sayfa yüklendikten sonra başlat
 document.addEventListener('DOMContentLoaded', ()=>{
   setTimeout(async ()=>{
@@ -3947,10 +3924,8 @@ async function fetchKlinesForHistory(){
   }));
   // Veriler geldi, paneli güncelle
   renderLongOpportunities();
-  renderShortOpportunities();
   renderFlashHistory();
   renderLast10Signals();
-  renderShortLast10();
 }
 
 function updateFlash(){
@@ -3976,9 +3951,7 @@ function updateFlash(){
   // Alt ve orta paneli güncelle
   renderFlashHistory();
   renderLongOpportunities();
-  renderShortOpportunities();
   renderLast10Signals();
-  renderShortLast10();
 }
 
 function renderLast10Signals(){
