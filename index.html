@@ -483,11 +483,21 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
   </div>
 </div>
 
-<!-- SON 10 SİNYAL ÖZET -->
-<div style="background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
-  <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--text2)">⚡ Son 10 Sinyal</div>
+<!-- FIRSAT POZİSYONLARI -->
+<div style="background:var(--bg1);border:1px solid rgba(0,212,161,.3);border-radius:12px;padding:12px;margin-bottom:12px">
+  <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--green)">🚀 Fırsattan Verilen Pozisyonlar</div>
+  <!-- Başlık satırı -->
+  <div style="display:grid;grid-template-columns:55px 35px 70px 55px 55px 55px 1fr;align-items:center;gap:4px;padding:3px 6px;font-size:9px;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:4px">
+    <div>Coin</div>
+    <div>Puan</div>
+    <div>Giriş</div>
+    <div>Şuan%</div>
+    <div>1h Ort.</div>
+    <div>4h Ort.</div>
+    <div>Mumlar</div>
+  </div>
   <div id="last10Grid" style="display:flex;flex-direction:column;gap:3px">
-    <div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>
+    <div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>
   </div>
 </div>
 
@@ -1799,20 +1809,24 @@ function renderLongOpportunities(){
     const trend5mOk = prices5m.length>=3 && prices5m[prices5m.length-1]>prices5m[0];
 
     // 80+ popup ver ve sanal poz aç
-    if(score>=80 && abovePrevClose){
+    if(score>=70 && abovePrevClose){
       const alertKey = 'kflong80_'+f.sym;
       const last = parseInt(localStorage.getItem(alertKey)||'0');
       if(Date.now()-last > 1800000){
         localStorage.setItem(alertKey, String(Date.now()));
         showLongOppPopup(f.sym, score, futCoin, kriterler);
         sendNotif('🚀 LONG FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'long80-'+f.sym);
-        const exists = vpDegisim.find(p=>p.sym===f.sym&&p.status==='open');
-        if(!exists){
-          const pr = parseFloat(futCoin.price)||0;
-          const atr = futCoin.atr||pr*0.015;
-          vpDegisim.push({sym:f.sym,dir:'LONG',entryPrice:pr,entryTime:Date.now(),sl:pr-atr*1.5,tp1:pr+atr*2,tp2:pr+atr*3,score,lev:VP_LEV,size:VP_SIZE,status:'open',reasons:kriterler,source:'degisim'});
-          saveVP('degisim');
-        }
+      }
+    }
+    // 55+ puan → fırsat poz listesine ekle
+    if(score>=55 && abovePrevClose){
+      const exists = vpDegisim.find(p=>p.sym===f.sym&&p.status==='open');
+      if(!exists){
+        const pr = parseFloat(futCoin.price)||0;
+        const atr = futCoin.atr||pr*0.015;
+        vpDegisim.push({sym:f.sym,dir:'LONG',entryPrice:pr,entryTime:Date.now(),sl:pr-atr*1.5,tp1:pr+atr*2,tp2:pr+atr*3,score,lev:VP_LEV,size:VP_SIZE,status:'open',reasons:kriterler,source:'degisim'});
+        saveVP('degisim');
+        saveToGist();
       }
     }
 
@@ -3716,49 +3730,56 @@ function updateFlash(){
 
 function renderLast10Signals(){
   const el = $('last10Grid');
-  if(!el || !flashHistory.length) return;
-  const now = Date.now();
+  if(!el) return;
 
-  const items = flashHistory.slice(0,10).map(f=>{
-    const futCoin = allFutures.find(x=>x.sym===f.sym) || {sym:f.sym, price:f.price};
-    const curPrice = parseFloat(futCoin.price||f.price)||0;
-    const sigPrice = f.signalPrice||f.price||0;
-    const pctFromSig = sigPrice>0?((curPrice-sigPrice)/sigPrice*100):0;
+  // vpDegisim'den son 10 poz
+  const pozlar = vpDegisim.slice(0,10);
+  if(!pozlar.length){
+    el.innerHTML = '<div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>';
+    return;
+  }
 
-    // 1h ortalamaya göre fark
-    const kl1hS = klinesMap1h[f.sym];
-    const kline1hClS = (window._kline1hClose||{})[f.sym];
-    let avg1hS = kline1hClS || (kl1hS&&kl1hS.length>=1 ? kl1hS[kl1hS.length-1].c : 0);
+  const items = pozlar.map(p=>{
+    const futCoin = allFutures.find(x=>x.sym===p.sym) || {sym:p.sym, price:p.entryPrice};
+    const curPrice = parseFloat(futCoin.price||p.entryPrice)||0;
+    const pctFromEntry = p.entryPrice>0?((curPrice-p.entryPrice)/p.entryPrice*100):0;
+
+    // 1h ortalama
+    const kl1hS = klinesMap1h[p.sym];
+    const kline1hClS = (window._kline1hClose||{})[p.sym];
+    const avg1hS = kline1hClS || (kl1hS&&kl1hS.length>=1 ? kl1hS[kl1hS.length-1].c : 0);
     const pctFrom1h = avg1hS>0?((curPrice-avg1hS)/avg1hS*100):null;
 
+    // 4h ortalama
+    const kl1hFor4hS = klinesMap1h[p.sym];
+    const avg4hS = kl1hFor4hS&&kl1hFor4hS.length>=4 ? kl1hFor4hS.slice(-4).reduce((a,k)=>a+k.c,0)/4 : 0;
+    const pctFrom4h = avg4hS>0?((curPrice-avg4hS)/avg4hS*100):null;
+
     // Son 4 mum rengi
-    const kl15S = klinesMap15m[f.sym] || ((window._kline15m||{})[f.sym] ? null : null);
+    const kl15S = klinesMap15m[p.sym];
     let mumlar = '';
     if(kl15S && kl15S.length>=4){
       mumlar = kl15S.slice(-4).map(k=>k.c>k.o?'🟢':'🔴').join('');
     }
 
-    // Puan
-    const score = calcLongScore(futCoin, f);
-    const scoreCol = score>=80?'var(--green)':score>=50?'var(--yellow)':'var(--text2)';
-    const pctCol = pctFromSig>=0?'var(--green)':'var(--red)';
-    const ago = Math.round((now-(f.signalTime||now))/60000);
     const d = curPrice>100?2:6;
+    const pctCol = pctFromEntry>=0?'var(--green)':'var(--red)';
+    const col1h = pctFrom1h!==null?(pctFrom1h>=0?'var(--green)':'var(--red)'):'var(--text2)';
+    const col4h = pctFrom4h!==null?(pctFrom4h>=0?'var(--green)':'var(--red)'):'var(--text2)';
+    const scoreCol = p.score>=80?'var(--green)':'var(--yellow)';
 
-    return `<div onclick="showDetail('${f.sym}')" style="display:grid;grid-template-columns:55px 35px 70px 55px 55px 1fr;align-items:center;gap:4px;padding:5px 6px;background:var(--bg2);border-radius:7px;cursor:pointer;font-size:11px">
-      <div style="font-weight:900">${f.sym.replace('USDT','')}</div>
-      <div style="font-weight:800;color:${scoreCol}">${score}</div>
-      <div style="color:var(--text2)">$${fmt(sigPrice,d)}</div>
-      <div style="color:${pctCol};font-weight:700">${pctFromSig>=0?'+':''}${pctFromSig?.toFixed(1)}%</div>
-      <div style="color:${pctFrom1h!==null?(pctFrom1h>=0?'var(--green)':'var(--red)'):'var(--text2)'};">${pctFrom1h!==null?(pctFrom1h>=0?'+':'')+pctFrom1h?.toFixed(1)+'%':'--'}</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:10px">${mumlar}</span>
-        <span style="font-size:9px;color:var(--text2)">${ago}dk</span>
-      </div>
+    return `<div onclick="showDetail('${p.sym}')" style="display:grid;grid-template-columns:55px 35px 70px 55px 55px 55px 1fr;align-items:center;gap:4px;padding:5px 6px;background:var(--bg2);border-radius:7px;cursor:pointer;font-size:11px">
+      <div style="font-weight:900">${p.sym.replace('USDT','')}</div>
+      <div style="font-weight:800;color:${scoreCol}">${p.score}</div>
+      <div style="color:var(--text2)">$${fmt(p.entryPrice,d)}</div>
+      <div style="color:${pctCol};font-weight:700">${pctFromEntry>=0?'+':''}${pctFromEntry?.toFixed(1)}%</div>
+      <div style="color:${col1h}">${pctFrom1h!==null?(pctFrom1h>=0?'+':'')+pctFrom1h?.toFixed(1)+'%':'--'}</div>
+      <div style="color:${col4h}">${pctFrom4h!==null?(pctFrom4h>=0?'+':'')+pctFrom4h?.toFixed(1)+'%':'--'}</div>
+      <div style="font-size:10px">${mumlar}</div>
     </div>`;
   }).join('');
 
-  el.innerHTML = items || '<div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>';
+  el.innerHTML = items;
 }
 
 function renderFlashHistory(){
