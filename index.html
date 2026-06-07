@@ -483,6 +483,14 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
   </div>
 </div>
 
+<!-- SON 10 SİNYAL ÖZET -->
+<div style="background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
+  <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--text2)">⚡ Son 10 Sinyal</div>
+  <div id="last10Grid" style="display:flex;flex-direction:column;gap:3px">
+    <div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>
+  </div>
+</div>
+
 <!-- FLASH GEÇMİŞ PANELİ -->
 <div style="background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
   <div style="font-size:12px;font-weight:800;color:var(--text2);margin-bottom:8px">📋 Son 20 Sinyal <small style="font-weight:400;font-size:10px">— Sinyal fiyatına göre yeşil/kırmızı · Yeniden sinyal alanlar öne geçer</small></div>
@@ -3677,6 +3685,7 @@ async function fetchKlinesForHistory(){
   // Veriler geldi, paneli güncelle
   renderLongOpportunities();
   renderFlashHistory();
+  renderLast10Signals();
 }
 
 function updateFlash(){
@@ -3702,6 +3711,54 @@ function updateFlash(){
   // Alt ve orta paneli güncelle
   renderFlashHistory();
   renderLongOpportunities();
+  renderLast10Signals();
+}
+
+function renderLast10Signals(){
+  const el = $('last10Grid');
+  if(!el || !flashHistory.length) return;
+  const now = Date.now();
+
+  const items = flashHistory.slice(0,10).map(f=>{
+    const futCoin = allFutures.find(x=>x.sym===f.sym) || {sym:f.sym, price:f.price};
+    const curPrice = parseFloat(futCoin.price||f.price)||0;
+    const sigPrice = f.signalPrice||f.price||0;
+    const pctFromSig = sigPrice>0?((curPrice-sigPrice)/sigPrice*100):0;
+
+    // 1h ortalamaya göre fark
+    const kl1hS = klinesMap1h[f.sym];
+    const kline1hClS = (window._kline1hClose||{})[f.sym];
+    let avg1hS = kline1hClS || (kl1hS&&kl1hS.length>=1 ? kl1hS[kl1hS.length-1].c : 0);
+    const pctFrom1h = avg1hS>0?((curPrice-avg1hS)/avg1hS*100):null;
+
+    // Son 4 mum rengi
+    const kl15S = klinesMap15m[f.sym] || ((window._kline15m||{})[f.sym] ? null : null);
+    let mumlar = '';
+    if(kl15S && kl15S.length>=4){
+      mumlar = kl15S.slice(-4).map(k=>k.c>k.o?'🟢':'🔴').join('');
+    }
+
+    // Puan
+    const score = calcLongScore(futCoin, f);
+    const scoreCol = score>=80?'var(--green)':score>=50?'var(--yellow)':'var(--text2)';
+    const pctCol = pctFromSig>=0?'var(--green)':'var(--red)';
+    const ago = Math.round((now-(f.signalTime||now))/60000);
+    const d = curPrice>100?2:6;
+
+    return `<div onclick="showDetail('${f.sym}')" style="display:grid;grid-template-columns:55px 35px 70px 55px 55px 1fr;align-items:center;gap:4px;padding:5px 6px;background:var(--bg2);border-radius:7px;cursor:pointer;font-size:11px">
+      <div style="font-weight:900">${f.sym.replace('USDT','')}</div>
+      <div style="font-weight:800;color:${scoreCol}">${score}</div>
+      <div style="color:var(--text2)">$${fmt(sigPrice,d)}</div>
+      <div style="color:${pctCol};font-weight:700">${pctFromSig>=0?'+':''}${pctFromSig?.toFixed(1)}%</div>
+      <div style="color:${pctFrom1h!==null?(pctFrom1h>=0?'var(--green)':'var(--red)'):'var(--text2)'};">${pctFrom1h!==null?(pctFrom1h>=0?'+':'')+pctFrom1h?.toFixed(1)+'%':'--'}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:10px">${mumlar}</span>
+        <span style="font-size:9px;color:var(--text2)">${ago}dk</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = items || '<div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>';
 }
 
 function renderFlashHistory(){
