@@ -3659,26 +3659,21 @@ function startWebSocket(){
         const gc=ct.green, rc=ct.red;
         window._ct[sym]={o:price,t:now,green:gc,red:rc};
 
-        // Anlık sinyal — mum + futures uyumu
+        // Anlık sinyal — mum + futures uyumu (cache kullan, ağır hesaplama yapma)
         if(allFutures.length){
           const wf=allFutures.find(x=>x.sym===sym);
           if(wf){
             const futSig=wf.sig||'BEKLE';
             const futConf=wf.confidence||50;
-            const fr=fundingData.find(x=>x.sym===sym);
-            const ls=lsData.find(x=>x.sym===sym);
-            const oi=oiData.find(x=>x.sym===sym);
-            const ps=calcPatlamaScore(wf,wf.klines1d,wf.klines4h,wf.klines15m,fr,ls,oi,klinesMap1h[sym]);
-            if(!wf._wsPs||ps.totalScore>(wf._wsPs.totalScore||0)) wf._wsPs=ps;
+            // Cache'den oku — WS içinde calcPatlamaScore çağırma!
+            const ps=wf._ps||wf._wsPs||{totalScore:0,alarm:{text:'',level:'',color:'',emoji:''}};
 
             // 2+ yeşil mum + Futures LONG → CANLI GİRİŞ SİNYALİ
             if(gc>=2&&isGreen&&futSig==='LONG'&&futConf>=55){
               const ak=localStorage.getItem('kfcl_'+sym);
               if(!ak||(now-parseInt(ak))>1800000){
                 localStorage.setItem('kfcl_'+sym,String(now));
-                showTicker('🟢 CANLI LONG: '+sym.replace('USDT','')+' — '+gc+' yeşil mum + Futures LONG %'+futConf+' + Patlama '+ps.totalScore);
-                renderMasterSignal();
-                if(ps.totalScore>=35) renderPatlamaList();
+                showTicker('🟢 CANLI LONG: '+sym.replace('USDT','')+' — '+gc+' yeşil mum + Futures LONG %'+futConf);
               }
             }
 
@@ -3688,21 +3683,18 @@ function startWebSocket(){
               if(!ak||(now-parseInt(ak))>1800000){
                 localStorage.setItem('kfcs_'+sym,String(now));
                 showTicker('🔴 CANLI SHORT: '+sym.replace('USDT','')+' — '+rc+' kırmızı mum + Futures SHORT %'+futConf);
-                renderMasterSignal();
               }
             }
 
-            // Patlama eşiği
+            // Patlama eşiği — cache skoru yüksekse bildir
             if(ps.totalScore>=65){
               const ak2=localStorage.getItem('kfwsa_'+sym);
               if(!ak2||(now-parseInt(ak2))>1800000){
                 localStorage.setItem('kfwsa_'+sym,String(now));
                 showTicker('🔥 PATLAMA: '+sym.replace('USDT','')+' Skor:'+ps.totalScore+' · '+ps.alarm.text);
                 showEarlyAlert(sym,ps.totalScore,ps.alarm.level,ps.alarm.text);
-                openVirtualPosition(wf,ps.totalScore,price>(wf._wsPs?.price||price)?'LONG':'SHORT','patlama');
               }
             }
-            if(ps.totalScore>=35) renderPatlamaList();
           }
         }
       } else {
@@ -3758,8 +3750,6 @@ function startWebSocket(){
           flashHistory=flashHistory.slice(0,20);
           saveToGist();
           // Yeni sinyal için kline verisi hemen çek, sonra render et
-          fetchKlinesForHistory().then(()=>{ updateFlash(); });
-
           updateFlash();
           if(Math.abs(ch)>=1){
             showTicker(`⚡ FLASH: ${sym.replace('USDT','')} ${ch>0?'📈':'📉'} ${ch>=0?'+':''}${ch?.toFixed(2)}% — ${f?.sig||''} %${f?.confidence||0}`);
@@ -5444,7 +5434,7 @@ async function saveToCloud() {
 }
 
 // Her 60 saniyede buluta kaydet
-setInterval(saveToCloud, 60000);
+
 
 
 // ══════════════════════════════════════════════════════
