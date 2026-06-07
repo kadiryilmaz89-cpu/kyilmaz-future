@@ -1833,6 +1833,7 @@ function renderLongOpportunities(){
         flashOppHistory.unshift(oppEntry);
         flashOppHistory = flashOppHistory.slice(0,10);
         renderLast10Signals();
+        saveToGist();
       }
     }
 
@@ -5564,6 +5565,7 @@ async function saveToGist(){
       vpPatlama, vpFutures, vpStrateji, vpEFormul, vpMaster, vpDegisim,
       kasaPatlama, kasaFutures, kasaStrateji, kasaDusus, kasaEFormul, kasaMaster, kasaDegisim,
       flashHistory: flashHistory.slice(0,20),
+      flashOppHistory: flashOppHistory.slice(0,10),
       updatedAt: Date.now()
     };
     await fetch('https://api.github.com/gists/'+GIST_ID, {
@@ -5607,6 +5609,11 @@ async function loadFromGist(){
       flashHistory = d.flashHistory;
       renderFlashHistory();
       renderLongOpportunities();
+    }
+    // Fırsat pozisyonları
+    if(d.flashOppHistory?.length){
+      flashOppHistory = d.flashOppHistory;
+      renderLast10Signals();
     }
 
     console.log('Gist yüklendi:', new Date(d.updatedAt).toLocaleTimeString('tr-TR'));
