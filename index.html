@@ -4104,17 +4104,21 @@ function renderFlashHistory(){
     const pctFromPrevClose = curPrevClose>0?((curPrice-curPrevClose)/curPrevClose*100):0;
 
     // Yükselen/düşen belirleme:
-    // Hem 1h hem 4h ortalamasının üstündeyse → Üstünde
-    // Kline verisi yoksa → null (listede gösterme)
+    // 1h ve 4h kline varsa: her ikisinin ortalamasının üstünde mi?
+    // Kline yoksa: önceki mum kapanışına göre grupla
     const kl1hRFH = klinesMap1h[f.sym];
     let avg1h = 0, avg4h = 0;
     if(kl1hRFH && kl1hRFH.length>=4){
       avg1h = kl1hRFH.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(kl1hRFH.length,10);
       avg4h = kl1hRFH.slice(-4).reduce((a,k)=>a+k.c,0)/4;
     }
-    // Kline yoksa bu coini gösterme
-    if(!avg1h || !avg4h) return null;
-    const isAbove = curPrice > avg1h && curPrice > avg4h;
+    let isAbove;
+    if(avg1h>0 && avg4h>0){
+      isAbove = curPrice > avg1h && curPrice > avg4h;
+    } else {
+      // Kline yoksa sinyal yönüne bak (f.up)
+      isAbove = f.up === true;
+    }
     const ago = Math.round((now-(f.signalTime||now))/60000);
     const sigTime = f.signalTime?new Date(f.signalTime).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}):'';
     return {f, firstChPct, pctFromSig, pctFromPrevClose, isAbove, ago, sigTime};
