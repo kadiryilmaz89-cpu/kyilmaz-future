@@ -487,15 +487,6 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
 <div style="background:var(--bg1);border:1px solid rgba(0,212,161,.3);border-radius:12px;padding:12px;margin-bottom:12px">
   <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--green)">🚀 Fırsattan Verilen Pozisyonlar</div>
   <!-- Başlık satırı -->
-  <div style="display:grid;grid-template-columns:50px 1fr 1fr 1fr 45px 45px 80px;align-items:center;gap:4px;padding:3px 8px;font-size:9px;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:4px">
-    <div>Coin</div>
-    <div style="text-align:center">1. Sinyal</div>
-    <div style="text-align:center">2. Sinyal</div>
-    <div style="text-align:center">3. Sinyal</div>
-    <div style="text-align:center">1h Ort.</div>
-    <div style="text-align:center">4h Ort.</div>
-    <div style="text-align:right">Mumlar</div>
-  </div>
   <div id="last10Grid" style="display:flex;flex-direction:column;gap:3px">
     <div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>
   </div>
@@ -3756,8 +3747,11 @@ function renderLast10Signals(){
     return;
   }
 
-  const fmt2 = (p,d)=>p>0?'$'+p.toLocaleString('tr-TR',{minimumFractionDigits:d,maximumFractionDigits:d}):'--';
-  const d = (p)=>p>100?2:p>1?4:6;
+  const fmtP = (p)=>{
+    if(!p) return null;
+    const d = p>100?2:p>1?4:6;
+    return '$'+p.toLocaleString('tr-TR',{minimumFractionDigits:d,maximumFractionDigits:d});
+  };
 
   const items = pozlar.map(p=>{
     const futCoin = allFutures.find(x=>x.sym===p.sym)||{sym:p.sym,price:0};
@@ -3778,28 +3772,43 @@ function renderLast10Signals(){
     if(kl15S&&kl15S.length>=4) mumlar = kl15S.slice(-4).map(k=>k.c>k.o?'🟢':'🔴').join('');
     else if(kline15mS?.mumRenkleri) mumlar = kline15mS.mumRenkleri.join('');
 
-    const sigBox = (sig)=>{
-      if(!sig) return '<div style="background:rgba(255,255,255,.03);border-radius:6px;padding:4px;text-align:center;font-size:9px;color:var(--text2)">--</div>';
-      const sc = sig.score>=80?'var(--green)':sig.score>=55?'#f59e0b':'var(--text2)';
-      return `<div style="background:var(--bg2);border-radius:6px;padding:4px;text-align:center">
-        <div style="font-size:9px;color:${sc};font-weight:800">${sig.score}p</div>
-        <div style="font-size:8px;color:var(--text2)">${fmt2(sig.price,d(sig.price))}</div>
-        <div style="font-size:8px;color:var(--text2)">${sig.time||''}</div>
-      </div>`;
-    };
+    // İlk ve son sinyal
+    const ilk = p.sig1;
+    const son = p.sig3||p.sig2||p.sig1;
+    const ayni = !p.sig2 && !p.sig3;
 
+    const sigCol = (s)=>s>=80?'var(--green)':s>=55?'#f59e0b':'var(--text2)';
     const col1h = pct1h!==null?(pct1h>=0?'var(--green)':'var(--red)'):'var(--text2)';
     const col4h = pct4h!==null?(pct4h>=0?'var(--green)':'var(--red)'):'var(--text2)';
+    const ago = Math.round((Date.now()-(p.lastTime||Date.now()))/60000);
 
-    return `<div onclick="showDetail('${p.sym}')" style="background:var(--bg2);border-radius:8px;padding:6px 8px;cursor:pointer;margin-bottom:2px">
-      <div style="display:grid;grid-template-columns:50px 1fr 1fr 1fr 45px 45px 80px;align-items:center;gap:4px;font-size:11px">
-        <div style="font-weight:900">${p.sym.replace('USDT','')}</div>
-        ${sigBox(p.sig1)}
-        ${sigBox(p.sig2)}
-        ${sigBox(p.sig3)}
-        <div style="text-align:center;font-size:10px;color:${col1h}">${pct1h!==null?(pct1h>=0?'+':'')+pct1h.toFixed(1)+'%':'--'}</div>
-        <div style="text-align:center;font-size:10px;color:${col4h}">${pct4h!==null?(pct4h>=0?'+':'')+pct4h.toFixed(1)+'%':'--'}</div>
-        <div style="font-size:10px;text-align:right">${mumlar}</div>
+    return `<div onclick="showDetail('${p.sym}')" style="background:var(--bg2);border-radius:8px;padding:8px 10px;cursor:pointer;margin-bottom:4px">
+      <!-- 1. Satır: Coin + İlk Sinyal + Son Sinyal -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <div style="font-size:13px;font-weight:900;min-width:60px">${p.sym.replace('USDT','')}</div>
+        <div style="display:flex;gap:6px;flex:1;justify-content:center">
+          <!-- İlk sinyal -->
+          <div style="background:rgba(255,255,255,.05);border-radius:6px;padding:4px 8px;text-align:center;min-width:80px">
+            <div style="font-size:8px;color:var(--text2);margin-bottom:1px">İlk Sinyal</div>
+            <div style="font-size:11px;font-weight:800;color:${sigCol(ilk?.score)}">${ilk?.score||'--'}p</div>
+            <div style="font-size:9px;color:var(--text2)">${fmtP(ilk?.price)||'--'}</div>
+            <div style="font-size:8px;color:var(--text2)">${ilk?.time||''}</div>
+          </div>
+          <!-- Son sinyal -->
+          ${!ayni?`<div style="background:rgba(0,212,161,.08);border-radius:6px;padding:4px 8px;text-align:center;min-width:80px;border:1px solid rgba(0,212,161,.2)">
+            <div style="font-size:8px;color:var(--green);margin-bottom:1px">Son Sinyal</div>
+            <div style="font-size:11px;font-weight:800;color:${sigCol(son?.score)}">${son?.score||'--'}p</div>
+            <div style="font-size:9px;color:var(--text2)">${fmtP(son?.price)||'--'}</div>
+            <div style="font-size:8px;color:var(--text2)">${son?.time||''}</div>
+          </div>`:''}
+        </div>
+        <div style="font-size:9px;color:var(--text2);text-align:right">${ago}dk</div>
+      </div>
+      <!-- 2. Satır: 1h Ort + 4h Ort + Mumlar -->
+      <div style="display:flex;gap:8px;align-items:center;font-size:10px">
+        <div style="color:var(--text2)">1h: <span style="color:${col1h}">${pct1h!==null?(pct1h>=0?'+':'')+pct1h.toFixed(1)+'%':'--'}</span></div>
+        <div style="color:var(--text2)">4h: <span style="color:${col4h}">${pct4h!==null?(pct4h>=0?'+':'')+pct4h.toFixed(1)+'%':'--'}</span></div>
+        <div style="margin-left:auto;font-size:11px">${mumlar}</div>
       </div>
     </div>`;
   }).join('');
