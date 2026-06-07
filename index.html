@@ -3395,7 +3395,14 @@ function renderHeatmap(){
 
 // ── DETAIL POPUP ──
 function showDetail(sym){
-  const f=allFutures.find(x=>x.sym===sym);if(!f)return;
+  let f=allFutures.find(x=>x.sym===sym);
+  if(!f){
+    const tc=(window._tickerCache||{})[sym]||{};
+    const fh=[...flashHistory,...(flashOppHistory||[]),...(flashShortOppHistory||[])].find(x=>x.sym===sym)||{};
+    const pr=parseFloat(tc.price||fh.price||fh.sig1&&fh.sig1.price)||0;
+    if(!pr){showTicker('\u26a0\ufe0f '+sym.replace('USDT','')+' verisi yok \u2014 \xf6nce Tara butonuna bas');return;}
+    f={sym,price:pr,ch:((tc.ch24||0).toFixed?.(2)||'0'),vol24:tc.vol||0,sig:'BEKLE',confidence:50,rsi:null,atr:pr*0.015,klines4h:null,klines1d:null,klines15m:klinesMap15m[sym]||null,klines1h:klinesMap1h[sym]||null,scores:{},cross:null,boll:null,candle:null,sr:null,fg:null,macd:null};
+  }
   const col=f.sig==='LONG'?'var(--green)':f.sig==='SHORT'?'var(--red)':'var(--yellow)';
   const fr=fundingData.find(x=>x.sym===sym),ls=lsData.find(x=>x.sym===sym);
   const ps=calcPatlamaScore(f,f.klines1d,f.klines4h,f.klines15m,fr,ls,oiData.find(x=>x.sym===sym));
@@ -4034,11 +4041,10 @@ function renderLast10Signals(){
     const curPrice = parseFloat(futCoin.price)||0;
 
     const kl1hS = klinesMap1h[p.sym];
-    const kline1hClS = (window._kline1hClose||{})[p.sym];
-    const avg1hS = kline1hClS||(kl1hS&&kl1hS.length>=1?kl1hS[kl1hS.length-1].c:0);
-    const avg4hS = kl1hS&&kl1hS.length>=4?kl1hS.slice(-4).reduce((a,k)=>a+k.c,0)/4:0;
-    const pct1h = avg1hS>0?((curPrice-avg1hS)/avg1hS*100):null;
-    const pct4h = avg4hS>0?((curPrice-avg4hS)/avg4hS*100):null;
+    const avg1hS = kl1hS&&kl1hS.length>=4 ? kl1hS.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(kl1hS.length,10) : 0;
+    const avg4hS = kl1hS&&kl1hS.length>=4 ? kl1hS.slice(-4).reduce((a,k)=>a+k.c,0)/4 : 0;
+    const pct1h = avg1hS>0&&curPrice>0 ? ((curPrice-avg1hS)/avg1hS*100) : null;
+    const pct4h = avg4hS>0&&curPrice>0 ? ((curPrice-avg4hS)/avg4hS*100) : null;
 
     const kl15S = klinesMap15m[p.sym];
     const kline15mS = (window._kline15m||{})[p.sym];
