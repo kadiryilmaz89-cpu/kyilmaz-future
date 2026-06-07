@@ -284,6 +284,55 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
 
 <div class="main">
 
+<!-- BTC PANELİ -->
+<div class="btc-panel">
+  <div class="btc-top">
+    <div>
+      <div class="btc-price" id="btcPrice">--</div>
+      <div style="font-size:13px;font-weight:700;margin-top:2px" id="btcChg">BTC/USDT</div>
+      <div class="btc-meta" id="btcMeta"></div>
+    </div>
+    <div id="btcSigWrap"></div>
+  </div>
+  <!-- Otomatik Teknik Özet Notu -->
+  <div id="btcNote" style="display:none;margin-bottom:10px;padding:10px 12px;background:rgba(108,99,255,.08);border-left:3px solid var(--accent);border-radius:8px;font-size:11px;line-height:1.7;color:var(--text2)"></div>
+  <div class="dom-bar" id="domBar">
+    <div><div style="font-size:10px;color:var(--text2);margin-bottom:2px">BTC Dominans</div><div style="font-size:20px;font-weight:800" id="domVal">--</div></div>
+    <div style="font-size:11px;color:var(--text2);flex:1" id="domNote">Yükleniyor...</div>
+  </div>
+  <div class="vade-grid" id="btcVades">
+    <div class="vc"><div class="vc-lbl">15m yükleniyor...</div></div>
+    <div class="vc"><div class="vc-lbl">4h yükleniyor...</div></div>
+    <div class="vc"><div class="vc-lbl">1d yükleniyor...</div></div>
+  </div>
+</div>
+
+<!-- COIN ANALİZ — BTC'nin hemen altında -->
+<div class="section">
+  <div class="section-title">🔎 Coin Analizi <small>— Tam teknik analiz şablonu</small></div>
+  <div class="search-bar">
+    <input class="search-inp" id="analyzeInp" placeholder="Coin adı yaz... (BTC, ETH, SOL)" onkeydown="if(event.key==='Enter')analyzeCoin()">
+    <div class="tf-tabs" style="margin-bottom:0">
+      <button class="tf-btn active" onclick="setAnalyzeTF('15m',this)">15m</button>
+      <button class="tf-btn" onclick="setAnalyzeTF('4h',this)">4h</button>
+      <button class="tf-btn" onclick="setAnalyzeTF('1d',this)">1d</button>
+    </div>
+    <button class="search-btn" onclick="analyzeCoin()">🔍 Analiz Et</button>
+  </div>
+  <div id="analyzeResult"></div>
+</div>
+
+<!-- F&G + 4 SAATLİK GROQ RAPORU -->
+<div style="margin-bottom:12px">
+  <!-- F&G Göstergesi -->
+  <div id="fgBar" style="background:var(--bg1);border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border)">
+    <div style="font-size:11px;color:var(--text2)">😨 Korku & Açgözlülük</div>
+    <div id="fgValue" style="font-size:13px;font-weight:900">-- Yükleniyor...</div>
+    <div id="fgBar2" style="width:100px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+      <div id="fgFill" style="height:100%;width:0%;background:var(--green);border-radius:3px;transition:width .5s"></div>
+    </div>
+  </div>
+
 <!-- 🎯 MASTER SİNYAL -->
 <!-- 🎯 EN GÜÇLÜ SİNYAL PANELİ -->
 <div id="masterPanel" style="margin-bottom:12px;border-radius:14px;overflow:hidden;border:2px solid rgba(168,85,247,.4);background:linear-gradient(135deg,rgba(168,85,247,.08),rgba(255,215,0,.04))">
@@ -346,6 +395,90 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
   <div class="macro-warn-body" id="macroWarnBody"></div>
 </div>
 
+<!-- E FORMÜLÜ -->
+<div class="section">
+  <div class="section-title">🔴 E Formülü <small>— Son 5 günde %30+ yükselenler: düşüş trendi mi, devam mı?</small></div>
+  <div id="eFormuluList"><div class="empty">Tara butonuna basın...</div></div>
+</div>
+
+<!-- FUTURES SİNYALLERİ -->
+<div class="section">
+  <div class="section-title">🔮 Futures Sinyalleri <small>— Kompakt · 16 gösterge birleşik</small></div>
+  <div class="tf-tabs" id="futTF">
+    <button class="tf-btn active" onclick="switchFutTF('15m',this)">⚡ 15m Scalp</button>
+    <button class="tf-btn" onclick="switchFutTF('4h',this)">📊 4h Swing</button>
+    <button class="tf-btn" onclick="switchFutTF('1d',this)">🌊 1d Spot</button>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchFutTab('strong',this)">💎 Güçlü</button>
+    <button class="tab-btn" onclick="switchFutTab('gainers',this)">📈 Yükselenler</button>
+    <button class="tab-btn" onclick="switchFutTab('losers',this)">📉 Düşenler</button>
+    <button class="tab-btn" onclick="switchFutTab('volume',this)">⚡ Hacim</button>
+  </div>
+  <div id="futPerfBar" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:10px"></div>
+  <div class="fut-list" id="futList"><div class="empty">Tara butonuna basın...</div></div>
+</div>
+
+
+
+<!-- 1 DAKİKADA %1+ DEĞİŞİM -->
+<div class="flash-section">
+  <div class="flash-title">⚡ Son 1 Dakikada %1+ Değişim <span style="font-size:10px;font-weight:400;color:var(--text2)" id="flashTime">WS bekleniyor...</span></div>
+  <div class="flash-grid" id="flashGrid"><div class="empty" style="grid-column:1/-1">WebSocket bağlanıyor...</div></div>
+</div>
+
+<!-- LONG FIRSAT PANELI -->
+<div style="background:var(--bg1);border:2px solid rgba(0,212,161,.4);border-radius:12px;padding:14px;margin-bottom:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+    <div>
+      <span style="font-size:13px;font-weight:800;color:var(--green)">⚡ Değişime Göre LONG Fırsatları</span>
+      <span style="font-size:10px;color:var(--text2);margin-left:6px">80+ gir · 50-79 izle · 0-49 geç</span>
+    </div>
+    <span style="font-size:10px;color:var(--text2)" id="longOppTime">İzleniyor...</span>
+  </div>
+  <div id="longOppGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">
+    <div class="empty" style="grid-column:1/-1;font-size:11px">Veri bekleniyor...</div>
+  </div>
+</div>
+
+<!-- SHORT FIRSAT PANELI -->
+<div style="background:var(--bg1);border:2px solid rgba(255,71,87,.4);border-radius:12px;padding:14px;margin-bottom:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+    <div>
+      <span style="font-size:13px;font-weight:800;color:var(--red)">⚡ Değişime Göre SHORT Fırsatları</span>
+      <span style="font-size:10px;color:var(--text2);margin-left:6px">80+ gir · 50-79 izle · 0-49 geç</span>
+    </div>
+    <span style="font-size:10px;color:var(--text2)" id="shortOppTime">İzleniyor...</span>
+  </div>
+  <div id="shortOppGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">
+    <div class="empty" style="grid-column:1/-1;font-size:11px">Değişim izleniyor...</div>
+  </div>
+</div>
+
+<!-- FIRSAT LONG POZİSYONLARI -->
+<div style="background:var(--bg1);border:1px solid rgba(0,212,161,.3);border-radius:12px;padding:12px;margin-bottom:12px">
+  <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--green)">🚀 Fırsattan Verilen LONG Pozisyonlar</div>
+  <div id="last10Grid" style="display:flex;flex-direction:column;gap:3px">
+    <div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>
+  </div>
+</div>
+
+<!-- FIRSAT SHORT POZİSYONLARI -->
+<div style="background:var(--bg1);border:1px solid rgba(255,71,87,.3);border-radius:12px;padding:12px;margin-bottom:12px">
+  <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--red)">🔴 Fırsattan Verilen SHORT Pozisyonlar</div>
+  <div id="shortOppGrid2" style="display:flex;flex-direction:column;gap:3px">
+    <div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>
+  </div>
+</div>
+
+<!-- FLASH GEÇMİŞ PANELİ -->
+<div style="background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
+  <div style="font-size:12px;font-weight:800;color:var(--text2);margin-bottom:8px">📋 Son 20 Sinyal <small style="font-weight:400;font-size:10px">— Sinyal fiyatına göre yeşil/kırmızı · Yeniden sinyal alanlar öne geçer</small></div>
+  <div id="flashHistoryGrid" style="display:flex;flex-direction:column;gap:4px">
+    <div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>
+  </div>
+</div>
+
 <!-- 🔥 PATLAMA SKORU -->
 <div style="background:linear-gradient(135deg,rgba(255,71,87,.1),rgba(255,107,53,.06));border:2px solid rgba(255,71,87,.4);border-radius:12px;padding:14px;margin-bottom:12px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:6px">
@@ -387,121 +520,6 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
 </div>
 
 
-
-<!-- BTC PANELİ -->
-<div class="btc-panel">
-  <div class="btc-top">
-    <div>
-      <div class="btc-price" id="btcPrice">--</div>
-      <div style="font-size:13px;font-weight:700;margin-top:2px" id="btcChg">BTC/USDT</div>
-      <div class="btc-meta" id="btcMeta"></div>
-    </div>
-    <div id="btcSigWrap"></div>
-  </div>
-  <!-- Otomatik Teknik Özet Notu -->
-  <div id="btcNote" style="display:none;margin-bottom:10px;padding:10px 12px;background:rgba(108,99,255,.08);border-left:3px solid var(--accent);border-radius:8px;font-size:11px;line-height:1.7;color:var(--text2)"></div>
-  <div class="dom-bar" id="domBar">
-    <div><div style="font-size:10px;color:var(--text2);margin-bottom:2px">BTC Dominans</div><div style="font-size:20px;font-weight:800" id="domVal">--</div></div>
-    <div style="font-size:11px;color:var(--text2);flex:1" id="domNote">Yükleniyor...</div>
-  </div>
-  <div class="vade-grid" id="btcVades">
-    <div class="vc"><div class="vc-lbl">15m yükleniyor...</div></div>
-    <div class="vc"><div class="vc-lbl">4h yükleniyor...</div></div>
-    <div class="vc"><div class="vc-lbl">1d yükleniyor...</div></div>
-  </div>
-</div>
-
-<!-- F&G + 4 SAATLİK GROQ RAPORU -->
-<div style="margin-bottom:12px">
-  <!-- F&G Göstergesi -->
-  <div id="fgBar" style="background:var(--bg1);border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border)">
-    <div style="font-size:11px;color:var(--text2)">😨 Korku & Açgözlülük</div>
-    <div id="fgValue" style="font-size:13px;font-weight:900">-- Yükleniyor...</div>
-    <div id="fgBar2" style="width:100px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
-      <div id="fgFill" style="height:100%;width:0%;background:var(--green);border-radius:3px;transition:width .5s"></div>
-    </div>
-  </div>
-
-<!-- COIN ANALİZ — BTC'nin hemen altında -->
-<div class="section">
-  <div class="section-title">🔎 Coin Analizi <small>— Tam teknik analiz şablonu</small></div>
-  <div class="search-bar">
-    <input class="search-inp" id="analyzeInp" placeholder="Coin adı yaz... (BTC, ETH, SOL)" onkeydown="if(event.key==='Enter')analyzeCoin()">
-    <div class="tf-tabs" style="margin-bottom:0">
-      <button class="tf-btn active" onclick="setAnalyzeTF('15m',this)">15m</button>
-      <button class="tf-btn" onclick="setAnalyzeTF('4h',this)">4h</button>
-      <button class="tf-btn" onclick="setAnalyzeTF('1d',this)">1d</button>
-    </div>
-    <button class="search-btn" onclick="analyzeCoin()">🔍 Analiz Et</button>
-  </div>
-  <div id="analyzeResult"></div>
-</div>
-
-<!-- FUTURES SİNYALLERİ -->
-<div class="section">
-  <div class="section-title">🔮 Futures Sinyalleri <small>— Kompakt · 16 gösterge birleşik</small></div>
-  <div class="tf-tabs" id="futTF">
-    <button class="tf-btn active" onclick="switchFutTF('15m',this)">⚡ 15m Scalp</button>
-    <button class="tf-btn" onclick="switchFutTF('4h',this)">📊 4h Swing</button>
-    <button class="tf-btn" onclick="switchFutTF('1d',this)">🌊 1d Spot</button>
-  </div>
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchFutTab('strong',this)">💎 Güçlü</button>
-    <button class="tab-btn" onclick="switchFutTab('gainers',this)">📈 Yükselenler</button>
-    <button class="tab-btn" onclick="switchFutTab('losers',this)">📉 Düşenler</button>
-    <button class="tab-btn" onclick="switchFutTab('volume',this)">⚡ Hacim</button>
-  </div>
-  <div id="futPerfBar" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:10px"></div>
-  <div class="fut-list" id="futList"><div class="empty">Tara butonuna basın...</div></div>
-</div>
-
-
-
-<!-- E FORMÜLÜ -->
-<div class="section">
-  <div class="section-title">🔴 E Formülü <small>— Son 5 günde %30+ yükselenler: düşüş trendi mi, devam mı?</small></div>
-  <div id="eFormuluList"><div class="empty">Tara butonuna basın...</div></div>
-</div>
-
-<!-- 1 DAKİKADA %1+ DEĞİŞİM -->
-<div class="flash-section">
-  <div class="flash-title">⚡ Son 1 Dakikada %1+ Değişim <span style="font-size:10px;font-weight:400;color:var(--text2)" id="flashTime">WS bekleniyor...</span></div>
-  <div class="flash-grid" id="flashGrid"><div class="empty" style="grid-column:1/-1">WebSocket bağlanıyor...</div></div>
-</div>
-
-<!-- LONG FIRSAT PANELI -->
-<div style="background:var(--bg1);border:2px solid rgba(0,212,161,.4);border-radius:12px;padding:14px;margin-bottom:12px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
-    <div>
-      <span style="font-size:13px;font-weight:800;color:var(--green)">⚡ Değişime Göre LONG Fırsatları</span>
-      <span style="font-size:10px;color:var(--text2);margin-left:6px">80+ gir · 50-79 izle · 0-49 geç</span>
-    </div>
-    <span style="font-size:10px;color:var(--text2)" id="longOppTime">İzleniyor...</span>
-  </div>
-  <div id="longOppGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">
-    <div class="empty" style="grid-column:1/-1;font-size:11px">Veri bekleniyor...</div>
-  </div>
-</div>
-
-
-
-<!-- FIRSAT LONG POZİSYONLARI -->
-<div style="background:var(--bg1);border:1px solid rgba(0,212,161,.3);border-radius:12px;padding:12px;margin-bottom:12px">
-  <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--green)">🚀 Fırsattan Verilen LONG Pozisyonlar</div>
-  <div id="last10Grid" style="display:flex;flex-direction:column;gap:3px">
-    <div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>
-  </div>
-</div>
-
-
-
-<!-- FLASH GEÇMİŞ PANELİ -->
-<div style="background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
-  <div style="font-size:12px;font-weight:800;color:var(--text2);margin-bottom:8px">📋 Son 20 Sinyal <small style="font-weight:400;font-size:10px">— Sinyal fiyatına göre yeşil/kırmızı · Yeniden sinyal alanlar öne geçer</small></div>
-  <div id="flashHistoryGrid" style="display:flex;flex-direction:column;gap:4px">
-    <div class="empty" style="font-size:11px">Sinyal bekleniyor...</div>
-  </div>
-</div>
 
 <!-- BALINA HAREKETLERİ -->
 <div class="section">
@@ -1744,91 +1762,94 @@ function calcLongScore(f, flashEntry){
   return Math.min(score, 100);
 }
 
-function calcShortScore(f){
-  // f = allFutures'tan gelen coin objesi
+function calcShortScore(f, flashEntry){
   let score = 0;
   const sym = f.sym;
-  const curPrice = parseFloat(f.price)||0;
-  const kl15 = klinesMap15m[sym];
+  const isDown = flashEntry && !flashEntry.up;
+  const tickerData = (window._tickerCache||{})[sym]||{};
+  const curPrice = parseFloat(f.price||f.lastPrice||tickerData.price)||0;
+
+  // 1. Düşüş hareketi (20 puan)
+  if(isDown && Math.abs(parseFloat(flashEntry.chPct))>=1) score += 20;
+  else if(isDown && Math.abs(parseFloat(flashEntry.chPct))>=0.5) score += 10;
+
+  // 2. Hacim artışı (25 puan) — düşüşü onaylayan satış baskısı
   const kl1h = klinesMap1h[sym];
-
-  // ── ZORUNLU FİLTRELER (bunlar sağlanmazsa zaten listeye girmez) ──
-  // 1. Son 1h ortalamasının altında (25 puan)
   if(kl1h && kl1h.length>=10){
-    const avg1h = kl1h.slice(-10).reduce((a,k)=>a+k.c,0)/10;
-    if(curPrice < avg1h) score += 25;
+    const son1h = kl1h[kl1h.length-1];
+    const avg24h = kl1h.slice(-25,-1).reduce((a,k)=>a+k.v*k.c,0)/24;
+    const volRatio = avg24h>0?(son1h.v*son1h.c)/avg24h:0;
+    if(volRatio >= 1.35) score += 25;
+    else if(volRatio >= 1.15) score += 12;
   }
 
-  // 2. Son 4h ortalamasının altında (20 puan)
-  if(kl1h && kl1h.length>=4){
-    const avg4h = kl1h.slice(-4).reduce((a,k)=>a+k.c,0)/4;
-    if(curPrice < avg4h) score += 20;
-  }
-
-  // 3. Son mum kırmızı — zorunlu (15 puan)
-  if(kl15 && kl15.length>=1){
-    const sonMum = kl15[kl15.length-1];
-    if(sonMum.c < sonMum.o) score += 15;
-  }
-
-  // 4. Son 3 mumdan en az 2'si kırmızı (15 puan)
-  if(kl15 && kl15.length>=3){
-    const kirmizi = kl15.slice(-3).filter(k=>k.c<k.o).length;
-    if(kirmizi >= 3) score += 15;
-    else if(kirmizi >= 2) score += 10;
-  }
-
-  // 5. Bir önceki mumun low'unun altına sarkmış (25 puan) ← güçlü kırılım
+  // 3. Son 3 mum kırmızı (20 puan)
+  const kl15 = klinesMap15m[sym];
   if(kl15 && kl15.length>=2){
     const sonMum = kl15[kl15.length-1];
     const oncekiMum = kl15[kl15.length-2];
-    if(sonMum.l < oncekiMum.l) score += 25;
+    const kirmizi = kl15.slice(-3).filter(k=>k.c<k.o).length;
+    const gucluDusus = sonMum.c<sonMum.o && curPrice<oncekiMum.c && sonMum.v>oncekiMum.v;
+    if(gucluDusus) score += 20;
+    else if(kirmizi>=2) score += 10;
   }
 
-  // ── BONUS KRİTERLER ──
-  // RSI aşırı alım (10 puan bonus)
+  // 4. 5dk düşüş trendi (15 puan)
+  const prices5m = (window._price5m||{})[sym]||[];
+  if(prices5m.length>=5){
+    const ilk = prices5m[0];
+    const son = prices5m[prices5m.length-1];
+    const trend5m = (son-ilk)/ilk*100;
+    const surekli = prices5m.every((p,i)=>i===0||p<=prices5m[i-1]);
+    if(surekli && trend5m<=-0.3) score += 15;
+    else if(trend5m<=-0.5) score += 10;
+    else if(trend5m<=-0.2) score += 5;
+  }
+
+  // 5. RSI yüksekse bonus (aşırı alım = düşüş beklenir)
   if(f.rsi){
-    if(f.rsi > 70) score += 10;
-    else if(f.rsi > 60) score += 5;
-    else if(f.rsi < 35) score -= 15; // RSI çok düşükse short tehlikeli
+    if(f.rsi > 70) score += 15;
+    else if(f.rsi > 60) score += 10;
+    else if(f.rsi > 55) score += 5;
+    else if(f.rsi < 30) score -= 10;
+    else if(f.rsi < 40) score -= 5;
   }
 
-  // Funding pozitif = long sıkışması, short için iyi (5 puan bonus)
+  // 6. Funding pozitif (10 puan) — long ağırlıklı, short için iyi
   const fr = fundingData.find(x=>x.sym===sym);
-  if(fr && fr.rate > 0.01) score += 5;
+  if(fr){
+    if(fr.rate > 0.03) score += 10;
+    else if(fr.rate > 0) score += 5;
+  }
+
+  // 7. Sinyal fiyatının altındaysa bonus (20 puan)
+  const histEntry = flashHistory.find(x=>x.sym===sym);
+  if(histEntry){
+    const sigPriceH = histEntry.signalPrice||histEntry.price||0;
+    if(sigPriceH>0 && curPrice<sigPriceH) score += 20;
+  }
+
+  // 8. 4h ortalama kırılımı (aşağı) bonus (15 puan)
+  const kl1hFor4h = klinesMap1h[sym];
+  if(kl1hFor4h && kl1hFor4h.length>=4){
+    const avg4h = kl1hFor4h.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+    if(avg4h>0 && curPrice<avg4h) score += 15;
+  }
+
+  // 9. Hacim trendi bonusu (15 puan)
+  const volHist = (window._volHistory||{})[sym]||[];
+  if(volHist.length>=4){
+    const son3vol = volHist.slice(-3);
+    const artiyor = son3vol[0]<son3vol[1] && son3vol[1]<son3vol[2];
+    const volAvg = volHist.slice(0,-3).reduce((a,b)=>a+b,0)/Math.max(volHist.length-3,1);
+    if(artiyor && volAvg>0 && son3vol[2]>volAvg*1.5) score += 15;
+    else if(artiyor) score += 7;
+  }
+
+  // Yükselen coin max 15 puan
+  if(!isDown) score = Math.min(score, 15);
 
   return Math.max(0, Math.min(score, 100));
-}
-
-function shortKriterlerKontrol(f){
-  // Zorunlu filtreleri kontrol et — bunlardan biri eksikse listeye alma
-  const sym = f.sym;
-  const curPrice = parseFloat(f.price)||0;
-  const kl15 = klinesMap15m[sym];
-  const kl1h = klinesMap1h[sym];
-
-  // Son mum kırmızı olmalı (zorunlu)
-  if(!kl15 || kl15.length < 2) return false;
-  const sonMum = kl15[kl15.length-1];
-  if(sonMum.c >= sonMum.o) return false; // son mum yeşilse geç
-
-  // Son 3 mumdan en az 2'si kırmızı olmalı (zorunlu)
-  const kirmizi = kl15.slice(-3).filter(k=>k.c<k.o).length;
-  if(kirmizi < 2) return false;
-
-  // 1h ortalamasının altında olmalı (zorunlu)
-  if(kl1h && kl1h.length>=10){
-    const avg1h = kl1h.slice(-10).reduce((a,k)=>a+k.c,0)/10;
-    if(curPrice >= avg1h) return false;
-  }
-
-  // 4h ortalamasının altında olmalı (zorunlu)
-  if(kl1h && kl1h.length>=4){
-    const avg4h = kl1h.slice(-4).reduce((a,k)=>a+k.c,0)/4;
-    if(curPrice >= avg4h) return false;
-  }
-
-  return true;
 }
 
 function renderShortOpportunities(){
@@ -1836,113 +1857,87 @@ function renderShortOpportunities(){
   const timeEl = $('shortOppTime');
   if(!grid) return;
 
-  // Kaynak: flashHistory — sadece değişim sinyali gelmiş coinler
-  if(!flashHistory.length){
-    grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Değişim sinyali bekleniyor...</div>';
-    return;
-  }
+  const source = flashHistory;
+  const shortCands = source.map(f=>{
+    const futCoin = allFutures.find(x=>x.sym===f.sym) || {sym:f.sym, price:f.price, rsi:null};
+    const score = calcShortScore(futCoin, f);
+    const kriterler = [];
+    if(parseFloat(f.chPct)<=-1) kriterler.push('📉 '+f.chPct+'%');
+    const kl1h = klinesMap1h[f.sym];
+    if(kl1h?.length>=10){
+      const son1h=kl1h[kl1h.length-1];
+      const avg=kl1h.slice(-25,-1).reduce((a,k)=>a+k.v*k.c,0)/24;
+      const ratio=avg>0?(son1h.v*son1h.c)/avg:0;
+      if(ratio>=1.35) kriterler.push('Hacim '+ratio.toFixed(1)+'x');
+    }
+    if(futCoin.rsi && futCoin.rsi>65) kriterler.push('RSI '+futCoin.rsi?.toFixed(0));
 
-  const shortCands = flashHistory
-    .filter(f => !f.up) // sadece düşen sinyaller
-    .map(f=>{
-      const sym = f.sym;
-      const futCoin = allFutures.find(x=>x.sym===sym)||{sym,price:f.price,rsi:null};
-      const curPrice = parseFloat(futCoin.price||f.price)||0;
-      const kl15 = klinesMap15m[sym];
-      const kl1h = klinesMap1h[sym];
+    const curPrice = parseFloat(futCoin.price)||f.price||0;
+    const kline15m = (window._kline15m||{})[f.sym];
+    const kl15c = klinesMap15m[f.sym];
+    const prevClose15 = kline15m?.prevClose || ((kl15c&&kl15c.length>=2)?kl15c[kl15c.length-2].c:0);
+    const belowPrevClose = prevClose15>0 ? curPrice<prevClose15 : true;
 
-      // ── ZORUNLU FİLTRELER ──
-      // 1. Son mum kırmızı
-      if(!kl15 || kl15.length < 2) return null;
-      const sonMum = kl15[kl15.length-1];
-      const oncekiMum = kl15[kl15.length-2];
-      if(sonMum.c >= sonMum.o) return null;
+    const kl1hRFH = klinesMap1h[f.sym];
+    const kline1hCloseRFH = (window._kline1hClose||{})[f.sym];
+    let avg1h=0, avg4h=0;
+    if(kl1hRFH&&kl1hRFH.length>=4){
+      avg1h=kl1hRFH.slice(-1)[0]?.c||0;
+      avg4h=kl1hRFH.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+    } else if(kline1hCloseRFH){ avg1h=kline1hCloseRFH; }
+    const below1hAvg = avg1h>0&&avg4h>0 ? avg1h<avg4h : true;
 
-      // 2. Son 3 mumdan en az 2'si kırmızı
-      const kirmizi = kl15.slice(-3).filter(k=>k.c<k.o).length;
-      if(kirmizi < 2) return null;
+    const isShortCand = belowPrevClose && below1hAvg;
 
-      // 3. 1h ortalamasının altında
-      if(kl1h && kl1h.length>=10){
-        const avg1h = kl1h.slice(-10).reduce((a,k)=>a+k.c,0)/10;
-        if(curPrice >= avg1h) return null;
-      }
-
-      // 4. 4h ortalamasının altında
-      if(kl1h && kl1h.length>=4){
-        const avg4h = kl1h.slice(-4).reduce((a,k)=>a+k.c,0)/4;
-        if(curPrice >= avg4h) return null;
-      }
-
-      // 5. Bir önceki mumun low'unun altına sarkmış
-      if(sonMum.l >= oncekiMum.l) return null;
-
-      // ── PUAN HESAPLA ──
-      const score = calcShortScore(futCoin);
-
-      // Kriter etiketleri
-      const kriterler = [];
-      kriterler.push('📉 '+f.chPct+'%');
-      if(kl1h && kl1h.length>=10){
-        const avg1h = kl1h.slice(-10).reduce((a,k)=>a+k.c,0)/10;
-        kriterler.push('1h↓'+(((avg1h-curPrice)/avg1h)*100).toFixed(1)+'%');
-      }
-      kriterler.push('Low↓ '+kirmizi+'/3🔴');
-      if(futCoin.rsi && futCoin.rsi>60) kriterler.push('RSI '+futCoin.rsi?.toFixed(0));
-
-      return {...f, futCoin, curPrice, score, kriterler};
-    })
-    .filter(c => c && c.score >= 60)
-    .sort((a,b)=>b.score-a.score)
-    .slice(0, 10);
-
-  // 80+ popup & bildirim & ses
-  shortCands.forEach(c=>{
-    if(c.score >= 80){
-      const alertKey = 'kfshort80_'+c.sym;
+    // 70+ popup
+    if(score>=70 && isShortCand){
+      const alertKey = 'kfshort70_'+f.sym;
       const last = parseInt(localStorage.getItem(alertKey)||'0');
       if(Date.now()-last > 1800000){
         localStorage.setItem(alertKey, String(Date.now()));
-        sendNotif('🔴 GÜÇLÜ SHORT: '+c.sym.replace('USDT','')+' — '+c.score+'/100', c.kriterler.join(' · '), 'short80-'+c.sym);
-        try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=440;g.gain.value=0.35;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.8);o.stop(a.currentTime+0.8);}catch(e){}
+        sendNotif('🔴 SHORT FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'short70-'+f.sym);
       }
     }
-    // 60+ poz listesine ekle
-    const pr = parseFloat(c.curPrice||c.price)||0;
-    const sigTime = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
-    const exIdx = flashShortOppHistory.findIndex(x=>x.sym===c.sym);
-    if(exIdx>=0){
-      const ex = flashShortOppHistory[exIdx];
-      ex.sig3 = ex.sig2||null;
-      ex.sig2 = {price:pr, score:c.score, time:sigTime};
-      ex.lastTime = Date.now();
-    } else {
-      flashShortOppHistory.unshift({sym:c.sym, sig1:{price:pr,score:c.score,time:sigTime}, sig2:null, sig3:null, lastTime:Date.now()});
-      flashShortOppHistory = flashShortOppHistory.slice(0,10);
+
+    // 55+ poz listesine ekle
+    if(score>=55 && isShortCand){
+      const pr = parseFloat(futCoin.price)||0;
+      const sigTime = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+      const exIdx = flashShortOppHistory.findIndex(x=>x.sym===f.sym);
+      if(exIdx>=0){
+        const ex = flashShortOppHistory[exIdx];
+        ex.sig3 = ex.sig2||null;
+        ex.sig2 = {price:pr, score, time:sigTime};
+        ex.lastTime = Date.now();
+      } else {
+        flashShortOppHistory.unshift({sym:f.sym, sig1:{price:pr,score,time:sigTime}, sig2:null, sig3:null, lastTime:Date.now()});
+        flashShortOppHistory = flashShortOppHistory.slice(0,10);
+      }
+      renderShortLast10();
+      saveToGist();
     }
-    renderShortLast10();
-    saveToGist();
-  });
+
+    return {...f, score, futCoin, kriterler, isShortCand};
+  }).filter(Boolean).filter(c=>c.isShortCand).sort((a,b)=>b.score-a.score).slice(0,10);
 
   if(!shortCands.length){
-    grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Değişim var ama filtreler geçilmedi</div>';
+    grid.innerHTML='<div class="empty" style="grid-column:1/-1;font-size:11px">Değişim izleniyor...</div>';
     return;
   }
   if(timeEl) timeEl.textContent = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
   grid.style.gridTemplateColumns = 'repeat(5,1fr)';
-  grid.innerHTML = shortCands.map(c=>{
+  grid.innerHTML = shortCands.slice(0,10).map(c=>{
     const s = c.score;
-    const bg = s>=80?'rgba(255,71,87,.22)':'rgba(255,71,87,.10)';
-    const border = s>=80?'var(--red)':'rgba(255,71,87,.5)';
+    const bg = s>=80?'rgba(255,71,87,.22)':s>=50?'rgba(255,71,87,.10)':'rgba(255,71,87,.04)';
+    const border = s>=80?'var(--red)':s>=50?'rgba(255,71,87,.5)':'rgba(255,71,87,.2)';
     const chPct = parseFloat(c.chPct)||0;
-    const topKrit = c.kriterler.slice(0,2).join(' · ');
+    const topKrit = c.kriterler.slice(0,2).join(' ');
     return `<div onclick="showDetail('${c.sym}')" style="background:${bg};border:1.5px solid ${border};border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer">
       <div style="font-size:11px;font-weight:900;margin-bottom:2px">${c.sym.replace('USDT','')}</div>
-      <div style="font-size:22px;font-weight:900;color:${s>=80?'var(--red)':'#f59e0b'};line-height:1.1">${s}</div>
+      <div style="font-size:22px;font-weight:900;color:${s>=80?'var(--red)':s>=50?'#f59e0b':'var(--text2)'};line-height:1.1">${s}</div>
       <div style="font-size:8px;color:var(--text2);margin-bottom:2px">/100</div>
-      <div style="font-size:9px;color:var(--red)">${chPct.toFixed(2)}%</div>
-      ${topKrit?`<div style="font-size:7px;color:var(--text2);margin-top:2px;line-height:1.3">${topKrit}</div>`:''}
-      ${s>=80?'<div style="font-size:7px;color:var(--red);font-weight:800;margin-top:2px">🔴 GÜÇLÜ</div>':''}
+      <div style="font-size:9px;color:${chPct<0?'var(--red)':'var(--green)'}">${chPct>=0?'+':''}${chPct}%</div>
+      ${topKrit?`<div style="font-size:7px;color:var(--text2);margin-top:2px">${topKrit}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -3377,14 +3372,7 @@ function renderHeatmap(){
 
 // ── DETAIL POPUP ──
 function showDetail(sym){
-  let f=allFutures.find(x=>x.sym===sym);
-  if(!f){
-    const tc=(window._tickerCache||{})[sym]||{};
-    const fh=[...flashHistory,...(flashOppHistory||[]),...(flashShortOppHistory||[])].find(x=>x.sym===sym)||{};
-    const pr=parseFloat(tc.price||fh.price||fh.sig1&&fh.sig1.price)||0;
-    if(!pr){showTicker('\u26a0\ufe0f '+sym.replace('USDT','')+' verisi yok \u2014 \xf6nce Tara butonuna bas');return;}
-    f={sym,price:pr,ch:((tc.ch24||0).toFixed?.(2)||'0'),vol24:tc.vol||0,sig:'BEKLE',confidence:50,rsi:null,atr:pr*0.015,klines4h:null,klines1d:null,klines15m:klinesMap15m[sym]||null,klines1h:klinesMap1h[sym]||null,scores:{},cross:null,boll:null,candle:null,sr:null,fg:null,macd:null};
-  }
+  const f=allFutures.find(x=>x.sym===sym);if(!f)return;
   const col=f.sig==='LONG'?'var(--green)':f.sig==='SHORT'?'var(--red)':'var(--yellow)';
   const fr=fundingData.find(x=>x.sym===sym),ls=lsData.find(x=>x.sym===sym);
   const ps=calcPatlamaScore(f,f.klines1d,f.klines4h,f.klines15m,fr,ls,oiData.find(x=>x.sym===sym));
@@ -3743,7 +3731,7 @@ function startWebSocket(){
 
       if(prev10){
         const ch=((price-prev10)/prev10)*100;
-        if(Math.abs(ch)>=0.3){ // 10 saniyede %0.3+
+        if(Math.abs(ch)>=0.5){ // 10 saniyede %0.5+
           const f=allFutures.find(x=>x.sym===sym);
           const ex=flashData.findIndex(x=>x.sym===sym);
           const kl15ws=klinesMap15m&&klinesMap15m[sym];
@@ -3777,7 +3765,10 @@ function startWebSocket(){
           }
           flashHistory=flashHistory.slice(0,20);
           saveToGist();
-          updateFlash(); // Anında render et — kline poll'da güncellenir
+          // Yeni sinyal için kline verisi hemen çek, sonra render et
+          fetchKlinesForHistory().then(()=>{ updateFlash(); });
+
+          updateFlash();
           if(Math.abs(ch)>=1){
             showTicker(`⚡ FLASH: ${sym.replace('USDT','')} ${ch>0?'📈':'📉'} ${ch>=0?'+':''}${ch?.toFixed(2)}% — ${f?.sig||''} %${f?.confidence||0}`);
           }
@@ -3844,7 +3835,7 @@ async function flashPoll(){
 
       if(prev && prev > 0){
         const ch = ((price - prev) / prev) * 100;
-        if(Math.abs(ch) >= 0.5){
+        if(Math.abs(ch) >= 1){
           const f = allFutures.find(x=>x.sym===sym);
           const kl15 = klinesMap15m&&klinesMap15m[sym];
           const kline15mCache = (window._kline15m||{})[sym];
@@ -3870,7 +3861,7 @@ async function flashPoll(){
           }
           flashHistory = flashHistory.slice(0,20);
           saveToGist();
-          updateFlash(); // Anında render et
+          fetchKlinesForHistory().then(()=>{ updateFlash(); });
         }
       }
 
@@ -3911,7 +3902,7 @@ async function flashPoll(){
   } catch(e){}
 }
 // Her 30 saniyede bir çalıştır
-setInterval(flashPoll, 15000);
+setInterval(flashPoll, 30000);
 // Sayfa yüklendikten sonra başlat
 document.addEventListener('DOMContentLoaded', ()=>{
   setTimeout(async ()=>{
@@ -3985,7 +3976,9 @@ function updateFlash(){
   // Alt ve orta paneli güncelle
   renderFlashHistory();
   renderLongOpportunities();
+  renderShortOpportunities();
   renderLast10Signals();
+  renderShortLast10();
 }
 
 function renderLast10Signals(){
@@ -4018,10 +4011,11 @@ function renderLast10Signals(){
     const curPrice = parseFloat(futCoin.price)||0;
 
     const kl1hS = klinesMap1h[p.sym];
-    const avg1hS = kl1hS&&kl1hS.length>=4 ? kl1hS.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(kl1hS.length,10) : 0;
-    const avg4hS = kl1hS&&kl1hS.length>=4 ? kl1hS.slice(-4).reduce((a,k)=>a+k.c,0)/4 : 0;
-    const pct1h = avg1hS>0&&curPrice>0 ? ((curPrice-avg1hS)/avg1hS*100) : null;
-    const pct4h = avg4hS>0&&curPrice>0 ? ((curPrice-avg4hS)/avg4hS*100) : null;
+    const kline1hClS = (window._kline1hClose||{})[p.sym];
+    const avg1hS = kline1hClS||(kl1hS&&kl1hS.length>=1?kl1hS[kl1hS.length-1].c:0);
+    const avg4hS = kl1hS&&kl1hS.length>=4?kl1hS.slice(-4).reduce((a,k)=>a+k.c,0)/4:0;
+    const pct1h = avg1hS>0?((curPrice-avg1hS)/avg1hS*100):null;
+    const pct4h = avg4hS>0?((curPrice-avg4hS)/avg4hS*100):null;
 
     const kl15S = klinesMap15m[p.sym];
     const kline15mS = (window._kline15m||{})[p.sym];
@@ -4080,29 +4074,32 @@ function renderFlashHistory(){
     const curPrevClose = kline15mCur?.prevClose || (kl15Cur&&kl15Cur.length>=2?kl15Cur[kl15Cur.length-2].c:0) || sigPrice;
     const pctFromPrevClose = curPrevClose>0?((curPrice-curPrevClose)/curPrevClose*100):0;
 
-    // Yükselen/düşen belirleme:
-    // 1h ve 4h kline varsa: her ikisinin ortalamasının üstünde mi?
-    // Kline yoksa: önceki mum kapanışına göre grupla
+    // Önceki mum kapanışına göre üstünde/altında
+    // 1h ortalaması vs 4h ortalaması karşılaştırması
     const kl1hRFH = klinesMap1h[f.sym];
+    const kline1hCloseRFH = (window._kline1hClose||{})[f.sym];
     let avg1h = 0, avg4h = 0;
     if(kl1hRFH && kl1hRFH.length>=4){
-      avg1h = kl1hRFH.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(kl1hRFH.length,10);
+      avg1h = kl1hRFH.slice(-1)[0]?.c || 0;
       avg4h = kl1hRFH.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+    } else if(kline1hCloseRFH){
+      avg1h = kline1hCloseRFH;
     }
+
+    // Yükselen/düşen belirleme
     let isAbove;
     if(avg1h>0 && avg4h>0){
-      isAbove = curPrice > avg1h && curPrice > avg4h;
+      isAbove = avg1h > avg4h;
     } else {
-      // Kline yoksa sinyal yönüne bak (f.up)
-      isAbove = f.up === true;
+      isAbove = pctFromPrevClose>=0;
     }
     const ago = Math.round((now-(f.signalTime||now))/60000);
     const sigTime = f.signalTime?new Date(f.signalTime).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}):'';
     return {f, firstChPct, pctFromSig, pctFromPrevClose, isAbove, ago, sigTime};
   });
 
-  const yukselenler = items.filter(x=>x && x.isAbove);
-  const dusenler = items.filter(x=>x && !x.isAbove);
+  const yukselenler = items.filter(x=>x.isAbove);
+  const dusenler = items.filter(x=>!x.isAbove);
 
   const renderItem = (x)=>{
     const bg = x.isAbove?'rgba(0,212,161,.08)':'rgba(255,71,87,.08)';
