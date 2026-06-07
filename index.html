@@ -3753,13 +3753,13 @@ function renderLast10Signals(){
     return '$'+p.toLocaleString('tr-TR',{minimumFractionDigits:d,maximumFractionDigits:d});
   };
 
-  const header = `<div style="display:grid;grid-template-columns:48px 1fr 1fr 42px 42px 52px;gap:4px;padding:3px 6px;font-size:8px;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:4px">
+  const header = `<div style="display:grid;grid-template-columns:48px 1fr 1fr 42px 42px 56px;gap:4px;padding:3px 6px;font-size:8px;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:4px;text-align:left">
     <div>Coin</div>
-    <div style="text-align:center">1. Sinyal</div>
-    <div style="text-align:center">Son Sinyal</div>
-    <div style="text-align:center">1h</div>
-    <div style="text-align:center">4h</div>
-    <div style="text-align:center">Mumlar</div>
+    <div>1. Sinyal</div>
+    <div>Son Sinyal</div>
+    <div>1h</div>
+    <div>4h</div>
+    <div>Mumlar</div>
   </div>`;
 
   const items = pozlar.map(p=>{
@@ -3777,7 +3777,12 @@ function renderLast10Signals(){
     const kline15mS = (window._kline15m||{})[p.sym];
     let mumlar = '';
     if(kl15S&&kl15S.length>=4) mumlar = kl15S.slice(-4).map(k=>k.c>k.o?'🟢':'🔴').join('');
-    else if(kline15mS?.mumRenkleri) mumlar = kline15mS.mumRenkleri.join('');
+    else if(kline15mS?.mumRenkleri) mumlar = kline15mS.mumRenkleri.slice(-4).join('');
+    // Veri yoksa anlık çek
+    if(!mumlar && !window._kline15mFetching) {
+      window._kline15mFetching = true;
+      fetchKlinesForHistory().then(()=>{ window._kline15mFetching=false; renderLast10Signals(); });
+    }
 
     const ilk = p.sig1;
     const son = p.sig3||p.sig2||null;
@@ -3785,21 +3790,21 @@ function renderLast10Signals(){
     const col1h = pct1h!==null?(pct1h>=0?'var(--green)':'var(--red)'):'var(--text2)';
     const col4h = pct4h!==null?(pct4h>=0?'var(--green)':'var(--red)'):'var(--text2)';
 
-    const sigCell = (sig, label)=> sig ? 
-      `<div style="text-align:center;line-height:1.3">
+    const sigCell = (sig) => sig ?
+      `<div style="line-height:1.3">
         <div style="font-size:10px;font-weight:800;color:${sc(sig.score)}">${sig.score}p</div>
         <div style="font-size:8px;color:var(--text2)">${fmtP(sig.price)}</div>
         <div style="font-size:7px;color:var(--text2)">${sig.time||''}</div>
       </div>` :
-      `<div style="text-align:center;color:var(--text2);font-size:9px">--</div>`;
+      `<div style="color:var(--text2);font-size:9px">--</div>`;
 
-    return `<div onclick="showDetail('${p.sym}')" style="display:grid;grid-template-columns:48px 1fr 1fr 42px 42px 52px;gap:4px;align-items:center;padding:5px 6px;background:var(--bg2);border-radius:7px;cursor:pointer">
+    return `<div onclick="showDetail('${p.sym}')" style="display:grid;grid-template-columns:48px 1fr 1fr 42px 42px 56px;gap:4px;align-items:center;padding:5px 6px;background:var(--bg2);border-radius:7px;cursor:pointer">
       <div style="font-size:11px;font-weight:900">${p.sym.replace('USDT','')}</div>
       ${sigCell(ilk)}
       ${sigCell(son)}
-      <div style="text-align:center;font-size:10px;color:${col1h}">${pct1h!==null?(pct1h>=0?'+':'')+pct1h.toFixed(1)+'%':'--'}</div>
-      <div style="text-align:center;font-size:10px;color:${col4h}">${pct4h!==null?(pct4h>=0?'+':'')+pct4h.toFixed(1)+'%':'--'}</div>
-      <div style="text-align:center;font-size:10px">${mumlar||'--'}</div>
+      <div style="font-size:10px;color:${col1h}">${pct1h!==null?(pct1h>=0?'+':'')+pct1h.toFixed(1)+'%':'--'}</div>
+      <div style="font-size:10px;color:${col4h}">${pct4h!==null?(pct4h>=0?'+':'')+pct4h.toFixed(1)+'%':'--'}</div>
+      <div style="font-size:11px">${mumlar||'--'}</div>
     </div>`;
   }).join('');
 
