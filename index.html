@@ -657,6 +657,7 @@ let scanned=false,futTab='strong',mktTab='funding',learnPeriod='agirlik';
 let currentFutTF='15m',currentStratTF='15m',currentTkTF='4h',analyzeTF='4h';
 let allFutures=[],fundingData=[],oiData=[],lsData=[],flashData=[];
 let flashHistory=[]; // Son 20 sinyal geçmişi
+let flashOppHistory=[]; // Fırsattan verilen pozisyonlar (55+/70+ puan)
 let patlamaCache=[];
 let dususCache=[];
 let oiPrevData=JSON.parse(localStorage.getItem('kfoiprev')||'[]');
@@ -1818,15 +1819,20 @@ function renderLongOpportunities(){
         sendNotif('🚀 LONG FIRSATI: '+f.sym.replace('USDT','')+' — '+score+'/100', kriterler.join(' · '), 'long80-'+f.sym);
       }
     }
-    // 55+ puan → fırsat poz listesine ekle
+    // 55+ puan → fırsat listesine ekle
     if(score>=55 && abovePrevClose){
-      const exists = vpDegisim.find(p=>p.sym===f.sym&&p.status==='open');
-      if(!exists){
+      const alertKey = 'kfopp55_'+f.sym;
+      const last = parseInt(localStorage.getItem(alertKey)||'0');
+      if(Date.now()-last > 900000){ // 15 dakika aralık
+        localStorage.setItem(alertKey, String(Date.now()));
         const pr = parseFloat(futCoin.price)||0;
-        const atr = futCoin.atr||pr*0.015;
-        vpDegisim.push({sym:f.sym,dir:'LONG',entryPrice:pr,entryTime:Date.now(),sl:pr-atr*1.5,tp1:pr+atr*2,tp2:pr+atr*3,score,lev:VP_LEV,size:VP_SIZE,status:'open',reasons:kriterler,source:'degisim'});
-        saveVP('degisim');
-        saveToGist();
+        // Aynı coin zaten varsa güncelle, yoksa ekle
+        const exIdx = flashOppHistory.findIndex(x=>x.sym===f.sym);
+        const oppEntry = {sym:f.sym, score, entryPrice:pr, entryTime:Date.now(), kriterler};
+        if(exIdx>=0) flashOppHistory.splice(exIdx,1);
+        flashOppHistory.unshift(oppEntry);
+        flashOppHistory = flashOppHistory.slice(0,10);
+        renderLast10Signals();
       }
     }
 
@@ -3735,8 +3741,8 @@ function renderLast10Signals(){
   const el = $('last10Grid');
   if(!el) return;
 
-  // vpDegisim'den son 10 poz
-  const pozlar = vpDegisim.slice(0,10);
+  // vpDegisim yerine flashOppHistory kullan
+  const pozlar = flashOppHistory.slice(0,10);
   if(!pozlar.length){
     el.innerHTML = '<div class="empty" style="font-size:11px">Henüz poz verilmedi...</div>';
     return;
