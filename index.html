@@ -588,6 +588,7 @@ body{background:var(--bg0);color:var(--text);font-family:'Segoe UI',system-ui,sa
     <button class="tab-btn active" onclick="switchPerfSource('patlama',this)">🔥 Patlama & 📉 Düşüş</button>
     <button class="tab-btn" onclick="switchPerfSource('eformul',this)">🔴 E Formülü</button>
     <button class="tab-btn" onclick="switchPerfSource('master',this)">💎 Güçlü Sinyal</button>
+    <button class="tab-btn" onclick="switchPerfSource('confluence',this)">🎯 Confluence</button>
     <button class="tab-btn" onclick="switchPerfSource('degisim',this)">⚡ Değişim</button>
     <button class="tab-btn" onclick="switchPerfSource('futures',this)">🔮 Futures</button>
   </div>
@@ -4245,6 +4246,7 @@ let vpMaster=JSON.parse(localStorage.getItem('kfvp_m')||'[]');    // Güçlü Si
 let currentPerfSource='patlama';
 let vpDegisim=JSON.parse(localStorage.getItem('kfvp_deg')||'[]');    // Değişim LONG
 let virtualPositions=[];
+let vpConfluence=JSON.parse(localStorage.getItem('kfvp_conf')||'[]');
 
 // $1000 sanal kasa — her kaynak için
 const INITIAL_KASA = 1000; // $
@@ -4270,13 +4272,14 @@ function updateKasaFromClose(src, pnlUsd){
 let signalResults=JSON.parse(localStorage.getItem('kfsr')||'[]');
 
 // Sanal pozisyon aç
-function getVP(src){return src==='patlama'?vpPatlama:src==='futures'?vpFutures:src==='eformul'?vpEFormul:src==='master'?vpMaster:src==='degisim'?vpDegisim:vpStrateji;}
+function getVP(src){return src==='patlama'?vpPatlama:src==='futures'?vpFutures:src==='eformul'?vpEFormul:src==='master'?vpMaster:src==='degisim'?vpDegisim:src==='confluence'?vpConfluence:vpStrateji;}
 function saveVP(src){
   if(src==='patlama')localStorage.setItem('kfvp_p',JSON.stringify(vpPatlama));
   else if(src==='futures')localStorage.setItem('kfvp_f',JSON.stringify(vpFutures));
   else if(src==='eformul')localStorage.setItem('kfvp_e',JSON.stringify(vpEFormul));
   else if(src==='master')localStorage.setItem('kfvp_m',JSON.stringify(vpMaster));
   else if(src==='degisim')localStorage.setItem('kfvp_deg',JSON.stringify(vpDegisim));
+  else if(src==='confluence')localStorage.setItem('kfvp_conf',JSON.stringify(vpConfluence));
   else localStorage.setItem('kfvp_s',JSON.stringify(vpStrateji));
   // Bulut
   cloudSave(STORAGE_KEYS.vpPatlama, vpPatlama);
@@ -4324,7 +4327,7 @@ function openVirtualPosition(f, score, dir, source){
 function checkVirtualPositions(){
   if(!allFutures.length)return;
   let changed=false;
-  ['patlama','futures','strateji','eformul','master','degisim'].forEach(src=>{
+  ['patlama','futures','strateji','eformul','master','degisim','confluence'].forEach(src=>{
     const vp=getVP(src);
     vp.forEach(p=>{
       if(p.status!=='open')return;
@@ -5104,7 +5107,7 @@ function renderConfluence(){
         try{const a=new AudioContext();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=r.yon==='LONG'?660:440;g.gain.value=0.35;o.start();g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.8);o.stop(a.currentTime+0.8);}catch(e){}
         // Performansa poz aç — confluence kaynağı
         const cf = allFutures.find(x=>x.sym===r.sym);
-        if(cf) openVirtualPosition(cf, r.skor, r.yon, 'master');
+        if(cf) openVirtualPosition(cf, r.skor, r.yon, 'confluence');
       }
     }
   });
@@ -6014,7 +6017,7 @@ async function saveToGist(){
   _gistSaving = true;
   try{
     const data = {
-      vpPatlama, vpFutures, vpStrateji, vpEFormul, vpMaster, vpDegisim,
+      vpPatlama, vpFutures, vpStrateji, vpEFormul, vpMaster, vpDegisim, vpConfluence,
       kasaPatlama, kasaFutures, kasaStrateji, kasaDusus, kasaEFormul, kasaMaster, kasaDegisim,
       flashHistory: flashHistory.slice(0,20),
       flashOppHistory: flashOppHistory.slice(0,10),
@@ -6047,6 +6050,7 @@ async function loadFromGist(){
     if(d.vpEFormul?.length) vpEFormul = d.vpEFormul;
     if(d.vpMaster?.length) vpMaster = d.vpMaster;
     if(d.vpDegisim?.length) vpDegisim = d.vpDegisim;
+    if(d.vpConfluence?.length) vpConfluence = d.vpConfluence;
 
     // Kasaları yükle
     if(d.kasaPatlama) kasaPatlama = d.kasaPatlama;
