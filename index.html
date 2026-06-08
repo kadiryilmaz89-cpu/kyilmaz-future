@@ -3718,9 +3718,17 @@ function startWebSocket(){
         if(!ct.l||price<ct.l) ct.l=price;
       }
 
-      // Flash listesi - minute1Prices ile karşılaştır (her dakika güncellenir)
-      const prev10 = minute1Prices[sym];
-      if(prev10 && Math.abs(price-prev10)/prev10 > 0.001){ // en az %0.1 fark varsa kontrol et
+      // Kayan 60 saniyelik referans — fiyatları zaman damgalı sakla
+      if(!window._priceLog) window._priceLog={};
+      if(!window._priceLog[sym]) window._priceLog[sym]=[];
+      const plog = window._priceLog[sym];
+      plog.push({t:Date.now(), p:price});
+      while(plog.length && Date.now()-plog[0].t > 90000) plog.shift();
+      const ref60 = plog.find(x=>Date.now()-x.t >= 55000);
+      const prev10 = ref60 ? ref60.p : null;
+
+      // Flash listesi - 60 saniye önceki fiyatla karşılaştır
+      if(prev10 && Math.abs(price-prev10)/prev10 > 0.001){
         const ch=((price-prev10)/prev10)*100;
         if(Math.abs(ch)>=1){ // 1 dakikada %1+
           const f=allFutures.find(x=>x.sym===sym);
@@ -3776,13 +3784,7 @@ function startWebSocket(){
           }
         }
       }
-      // Her dakika referans fiyatı güncelle
-      if(!window._lastMinute) window._lastMinute={};
-      const curMin = Math.floor(Date.now()/60000);
-      if(window._lastMinute[sym] !== curMin){
-        window._lastMinute[sym] = curMin;
-        minute1Prices[sym] = price; // yeni dakikada referans fiyatı güncelle
-      }
+
       updatePosPrice(sym,price);
 
       // Tick fiyatlarını kaydet (ardışık momentum için)
@@ -3867,7 +3869,7 @@ async function flashPoll(){
           }
           flashHistory = flashHistory.slice(0,20);
           saveToGist();
-          fetchKlinesForHistory().then(()=>{ updateFlash(); });
+          updateFlash();
         }
       }
 
