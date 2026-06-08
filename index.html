@@ -4258,7 +4258,8 @@ let kasaEFormul = parseFloat(localStorage.getItem('kfkasa_e')||INITIAL_KASA);
 let kasaMaster = parseFloat(localStorage.getItem('kfkasa_m')||INITIAL_KASA);
 
 let kasaDegisim = parseFloat(localStorage.getItem('kfkasa_deg')||INITIAL_KASA);
-function getKasa(src){return src==='patlama'?kasaPatlama:src==='futures'?kasaFutures:src==='dusus'?kasaDusus:src==='eformul'?kasaEFormul:src==='master'?kasaMaster:src==='degisim'?kasaDegisim:kasaStrateji;}
+let kasaConfluence = parseFloat(localStorage.getItem('kfkasa_conf')||INITIAL_KASA);
+function getKasa(src){return src==='patlama'?kasaPatlama:src==='futures'?kasaFutures:src==='dusus'?kasaDusus:src==='eformul'?kasaEFormul:src==='master'?kasaMaster:src==='degisim'?kasaDegisim:src==='confluence'?kasaConfluence:kasaStrateji;}
 function updateKasaFromClose(src, pnlUsd){
   if(src==='patlama'){kasaPatlama+=pnlUsd;localStorage.setItem('kfkasa_p',kasaPatlama);}
   else if(src==='futures'){kasaFutures+=pnlUsd;localStorage.setItem('kfkasa_f',kasaFutures);}
@@ -4266,6 +4267,7 @@ function updateKasaFromClose(src, pnlUsd){
   else if(src==='eformul'){kasaEFormul+=pnlUsd;localStorage.setItem('kfkasa_e',kasaEFormul);}
   else if(src==='master'){kasaMaster+=pnlUsd;localStorage.setItem('kfkasa_m',kasaMaster);}
   else if(src==='degisim'){kasaDegisim+=pnlUsd;localStorage.setItem('kfkasa_deg',kasaDegisim);}
+  else if(src==='confluence'){kasaConfluence+=pnlUsd;localStorage.setItem('kfkasa_conf',kasaConfluence);}
   else{kasaStrateji+=pnlUsd;localStorage.setItem('kfkasa_s',kasaStrateji);}
 }
 // {sym, dir, entryPrice, entryTime, sl, tp1, tp2, score, status:'open'|'win'|'loss'|'expired', closePrice, closePct}
@@ -5098,7 +5100,7 @@ function renderConfluence(){
 
   // 85+ poz oner — bildirim
   results.forEach(r=>{
-    if(r.skor>=85){
+    if(r.skor>=70){
       const ak='kfconf_'+r.sym;
       const last=parseInt(localStorage.getItem(ak)||'0');
       if(Date.now()-last>1800000){
@@ -6018,7 +6020,7 @@ async function saveToGist(){
   try{
     const data = {
       vpPatlama, vpFutures, vpStrateji, vpEFormul, vpMaster, vpDegisim, vpConfluence,
-      kasaPatlama, kasaFutures, kasaStrateji, kasaDusus, kasaEFormul, kasaMaster, kasaDegisim,
+      kasaPatlama, kasaFutures, kasaStrateji, kasaDusus, kasaEFormul, kasaMaster, kasaDegisim, kasaConfluence,
       flashHistory: flashHistory.slice(0,20),
       flashOppHistory: flashOppHistory.slice(0,10),
       flashShortOppHistory: flashShortOppHistory.slice(0,10),
@@ -6060,6 +6062,7 @@ async function loadFromGist(){
     if(d.kasaEFormul) kasaEFormul = d.kasaEFormul;
     if(d.kasaMaster) kasaMaster = d.kasaMaster;
     if(d.kasaDegisim) kasaDegisim = d.kasaDegisim;
+    if(d.kasaConfluence) kasaConfluence = d.kasaConfluence;
 
     // Flash geçmişi
     if(d.flashHistory?.length){
