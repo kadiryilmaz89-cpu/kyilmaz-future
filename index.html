@@ -3722,14 +3722,24 @@ function startWebSocket(){
           }
           flashData=flashData.slice(0,15);
 
+          // Sinyal anında isAbove hesapla — sonra fiyat değişse de grup değişmesin
+          const _kl1hSnl = klinesMap1h[sym];
+          let _snlAvg1h=0, _snlAvg4h=0;
+          if(_kl1hSnl && _kl1hSnl.length>=4){
+            _snlAvg1h = _kl1hSnl.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(_kl1hSnl.length,10);
+            _snlAvg4h = _kl1hSnl.slice(-4).reduce((a,k)=>a+k.c,0)/4;
+          }
+          const _snlIsAbove = _snlAvg1h>0 && _snlAvg4h>0
+            ? price > _snlAvg1h && price > _snlAvg4h
+            : ch > 0;
+
           // Geçmiş listesine ekle — ilk sinyal yeşilse kırmızı sinyalde firstChPct korunsun
           const hEx = flashHistory.findIndex(x=>x.sym===sym);
           if(hEx>=0){
             const existing = flashHistory.splice(hEx,1)[0];
-            // İlk sinyal yeşilse firstChPct ve firstPrice korunsun
-            const keepFirst = existing.firstUp !== false; // ilk sinyal yeşildi
             flashHistory.unshift({
               ...entry,
+              isAbove: _snlIsAbove, // sabit kalacak
               signalPrice: existing.signalPrice,
               signalTime: existing.signalTime,
               firstPrice: existing.firstPrice||existing.price,
@@ -3737,7 +3747,7 @@ function startWebSocket(){
               firstUp: existing.firstUp !== undefined ? existing.firstUp : existing.up
             });
           } else {
-            flashHistory.unshift({...entry, firstPrice: price, firstChPct: ch?.toFixed(2), firstUp: ch>0});
+            flashHistory.unshift({...entry, isAbove: _snlIsAbove, firstPrice: price, firstChPct: ch?.toFixed(2), firstUp: ch>0});
           }
           flashHistory=flashHistory.slice(0,20);
           saveToGist();
@@ -3887,7 +3897,9 @@ setInterval(flashPoll, 15000);
 // Sayfa yüklendikten sonra başlat
 document.addEventListener('DOMContentLoaded', ()=>{
   setTimeout(async ()=>{
-    // Önce kline verilerini çek
+    // Önce Gist'ten geçmiş sinyalleri yükle
+    await loadFromGist();
+    // Sonra kline verilerini çek
     await fetchKlinesForHistory();
     // Sonra flashPoll başlat
     flashPoll();
@@ -4060,21 +4072,8 @@ function renderFlashHistory(){
     const curPrevClose = kline15mCur?.prevClose || (kl15Cur&&kl15Cur.length>=2?kl15Cur[kl15Cur.length-2].c:0) || sigPrice;
     const pctFromPrevClose = curPrevClose>0?((curPrice-curPrevClose)/curPrevClose*100):0;
 
-    // Yükselen/düşen belirleme:
-    // Şu anki fiyat hem 1h hem 4h ortalamasının üstündeyse → Yükselen
-    // Birinden bile altındaysa → Düşen
-    const kl1hG = klinesMap1h[f.sym];
-    let gAvg1h = 0, gAvg4h = 0;
-    if(kl1hG && kl1hG.length>=4){
-      gAvg1h = kl1hG.slice(-10).reduce((a,k)=>a+k.c,0)/Math.min(kl1hG.length,10);
-      gAvg4h = kl1hG.slice(-4).reduce((a,k)=>a+k.c,0)/4;
-    }
-    let isAbove;
-    if(gAvg1h>0 && gAvg4h>0){
-      isAbove = curPrice > gAvg1h && curPrice > gAvg4h;
-    } else {
-      isAbove = pctFromPrevClose >= 0;
-    }
+    // isAbove: sinyal anında kaydedilmiş değeri kullan — grup değişmesin
+    const isAbove = f.isAbove !== undefined ? f.isAbove : pctFromPrevClose >= 0;
     const ago = Math.round((now-(f.signalTime||now))/60000);
     const sigTime = f.signalTime?new Date(f.signalTime).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}):'';
     return {f, firstChPct, pctFromSig, pctFromPrevClose, isAbove, ago, sigTime};
